@@ -320,7 +320,10 @@ export function applyOp(ctx: OpContext, op: Op): OpResult {
         if (!ctx.language)
           return { op, result: "there is no language design to revise", isRead: true, error: true };
         const field = need(op.field, "field", op.op);
-        const after = need(op.text, "text", op.op);
+        // models copy the echo's "- meaning: ..." framing back into the text; the field is already named
+        const after = need(op.text, "text", op.op)
+          .replace(new RegExp(`^\\s*-?\\s*${field}(, the first instruction)?:\\s*`), "")
+          .trim();
         // a 2B model will chant the same revision six times in a row; only a change is an event
         if (after === ctx.language[field])
           return done(`your ${field} rule already says that; nothing was revised`);

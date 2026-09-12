@@ -518,7 +518,7 @@ describe("language design", () => {
         {
           comment: "again",
           ops: [
-            { op: "revise", field: "instruction", text: "two bytes" },
+            { op: "revise", field: "instruction", text: "- instruction: two bytes" },
             { op: "print", text: "cd" },
             { op: "set_pc", addr: 4 },
           ],
