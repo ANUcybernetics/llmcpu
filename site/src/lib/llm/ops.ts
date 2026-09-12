@@ -6,6 +6,7 @@
 import { z } from "zod";
 import {
   ABI_NAMES,
+  CONSOLE_ADDR,
   decode,
   DecodeError,
   type Delta,
@@ -24,6 +25,7 @@ export const OP_NAMES = [
   "peek",
   "load",
   "store",
+  "print",
   "get_reg",
   "set_reg",
   "alu",
@@ -105,6 +107,7 @@ const OP_SHAPES: Record<OpName, Record<string, object>> = {
   peek: { addr: INT, n: INT },
   load: { addr: INT, size: SIZE },
   store: { addr: INT, size: SIZE, value: INT },
+  print: { text: { type: "string", maxLength: 80 } },
   get_reg: { reg: REG },
   set_reg: { reg: REG, value: INT },
   alu: { fn: { type: "string", enum: [...ALU_OPS] }, a: INT, b: INT },
@@ -263,6 +266,12 @@ export function applyOp(ctx: OpContext, op: Op): OpResult {
             return done(`${hex(addr)}: ${hex(word)} is not a valid RV32I instruction`, true);
           throw error;
         }
+      }
+      case "print": {
+        // the same as storing each byte to the console page, one op instead of many
+        const text = need(op.text, "text", op.op);
+        for (const ch of text) store(machine, delta, CONSOLE_ADDR, 1, ch.charCodeAt(0) & 0xff);
+        return done("");
       }
       case "note":
         ctx.note = need(op.text, "text", op.op);

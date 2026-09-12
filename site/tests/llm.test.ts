@@ -338,3 +338,31 @@ describe("free reading guards", () => {
     expect(step.rounds).toHaveLength(1);
   });
 });
+
+describe("print op", () => {
+  it("prints a string in one op and counts as an effect", async () => {
+    const llm = machineFromImage(imageFromText("Because I could not stop for Death"));
+    const printer = {
+      id: "printer",
+      complete: () =>
+        Promise.resolve({
+          text: JSON.stringify({
+            comment: "say the first words",
+            ops: [
+              { op: "print", text: "Because" },
+              { op: "set_pc", addr: 8 },
+            ],
+          }),
+        }),
+    };
+    const step = await new LlmCpu(llm, printer, DEFAULT_KNOBS).stepInstruction();
+    expect(step.rounds).toHaveLength(1);
+    expect(llm.output).toBe("Because");
+    expect(effectsSummary(step)).toBe('printed "Because"');
+    expect(
+      stepJsonSchema(false).properties.ops.items.anyOf.some(
+        (s) => s.properties.op.const === "print",
+      ),
+    ).toBe(true);
+  });
+});

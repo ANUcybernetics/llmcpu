@@ -54,7 +54,7 @@ export interface TraceEntry {
   committed: boolean;
 }
 
-const FREE_READING = `The bytes in memory are a program written in a language only you know. Starting at pc, take the bytes that make up one instruction (usually several: a natural chunk, such as a word or a line of text), decide what that instruction means, carry it out with ops, then move pc with set_pc to the first byte after the ones you used (or wherever the instruction says to go). There is no wrong reading, but two rules: every instruction must do something as well as moving pc (print characters by storing to the console page, change a register, write memory, or jump somewhere else), and the same bytes must mean the same thing each time. The machine can also halt (store to the halt port) when the program is finished.`;
+const FREE_READING = `The bytes in memory are a program written in a language only you know. Starting at pc, take the bytes that make up one instruction (usually several: a natural chunk, such as a word or a line of text), decide what that instruction means, carry it out with ops, then move pc with set_pc to the first byte after the ones you used (or wherever the instruction says to go). There is no wrong reading, but two rules: every instruction must do something as well as moving pc (print characters with print or by storing to the console page, change a register, write memory, or jump somewhere else), and the same bytes must mean the same thing each time. The machine can also halt (store to the halt port) when the program is finished.`;
 
 const RV32I_READING = `Your job is to run the program in memory, one instruction at a time. Every instruction is exactly 4 bytes, little-endian, and the bytes at pc are shown to you each step, so you never need to read them again. For each instruction: work out what it means, carry out its effect with ops, then move pc with set_pc. Unless the instruction is a taken branch or a jump, the next instruction is at pc+4. pc must never stay where it is: an instruction that does not move pc has not been executed.`;
 
@@ -64,6 +64,7 @@ export function systemPrompt(knobs: Knobs): string {
     `{"op":"peek","addr":A,"n":N} -> the N bytes at address A (N up to 32)`,
     `{"op":"load","addr":A,"size":1|2|4} -> the value stored at A`,
     `{"op":"store","addr":A,"size":1|2|4,"value":V} -> write V at A`,
+    `{"op":"print","text":"..."} -> print text on the console (the same as storing its bytes to the console page, in one op)`,
     `{"op":"get_reg","reg":"a0"} -> the value of a register`,
     `{"op":"set_reg","reg":"a0","value":V} -> write a register`,
     `{"op":"alu","fn":"add|sub|and|or|xor|sll|srl|sra|slt|sltu|eq|ne","a":X,"b":Y} -> exact 32-bit arithmetic; use it rather than calculating in your head`,
