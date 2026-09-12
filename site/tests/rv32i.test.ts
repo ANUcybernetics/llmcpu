@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ABI_NAMES,
@@ -11,6 +13,7 @@ import {
   emptyDelta,
   formatCanonical,
   formatFriendly,
+  imageFromBytes,
   imageFromHex,
   imageFromRandom,
   imageFromText,
@@ -145,6 +148,18 @@ describe("display", () => {
     const m = newMachine();
     expect(() => store(m, emptyDelta(0), DISPLAY_END - 2, 4, 1)).toThrow(MachineFault);
     expect(() => load(m, DISPLAY_END, 1)).toThrow(MachineFault);
+  });
+});
+
+describe("foreign binaries", () => {
+  it("treats an x86-64 ELF as raw bytes at address 0, not as a program to load", () => {
+    const bytes = new Uint8Array(
+      readFileSync(join(import.meta.dirname, "../src/data/inputs/hello-x86_64.elf")),
+    );
+    const image = imageFromBytes(bytes, "x86");
+    expect(image.kind).toBe("raw");
+    const m = machineFromImage(image);
+    expect([...m.mem.subarray(0, 4)]).toEqual([0x7f, 0x45, 0x4c, 0x46]);
   });
 });
 
