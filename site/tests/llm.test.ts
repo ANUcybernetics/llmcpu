@@ -141,3 +141,27 @@ describe("runner + lockstep", () => {
     expect(step.rounds).toHaveLength(2);
   });
 });
+
+describe("step-back", () => {
+  it("undoes the last instruction on both tracks", async () => {
+    const llm = program("hello");
+    const lock = new Lockstep(cloneMachine(llm));
+    const cpu = new LlmCpu(
+      llm,
+      mockBackend(() => llm),
+      DEFAULT_KNOBS,
+    );
+    const before = cloneMachine(llm);
+    lock.advance(await cpu.stepInstruction(), llm);
+    lock.advance(await cpu.stepInstruction(), llm);
+    cpu.undoLast();
+    lock.undoLast();
+    cpu.undoLast();
+    lock.undoLast();
+    expect(llm.pc).toBe(before.pc);
+    expect([...llm.regs]).toEqual([...before.regs]);
+    expect([...lock.silicon.regs]).toEqual([...before.regs]);
+    expect(cpu.steps).toHaveLength(0);
+    expect(lock.status).toEqual({ kind: "running" });
+  });
+});
