@@ -4,6 +4,7 @@
 // schema every model backend understands.
 
 import { z } from "zod";
+import { LANGUAGE_FIELDS, type LanguageDesign, type LanguageField } from "./prompt";
 import {
   ABI_NAMES,
   CONSOLE_ADDR,
@@ -36,6 +37,7 @@ export const OP_NAMES = [
   "set_pc",
   "disasm",
   "note",
+  "revise",
 ] as const;
 export type OpName = (typeof OP_NAMES)[number];
 
@@ -92,6 +94,7 @@ export const OpSchema = z.object({
   x: Int.optional(),
   y: Int.optional(),
   colour: Int.optional(),
+  field: z.enum(LANGUAGE_FIELDS).optional(),
 });
 export type Op = z.infer<typeof OpSchema>;
 
@@ -122,6 +125,10 @@ const OP_SHAPES: Record<OpName, Record<string, object>> = {
   set_pc: { addr: INT },
   disasm: { addr: INT },
   note: { text: { type: "string", maxLength: 200 } },
+  revise: {
+    field: { type: "string", enum: [...LANGUAGE_FIELDS] },
+    text: { type: "string", maxLength: 300 },
+  },
 };
 
 const shape = (op: OpName) => ({
@@ -136,7 +143,7 @@ const shape = (op: OpName) => ({
  * grammar itself forbids a `set_reg` without a value or a `set_pc` with its
  * address in the wrong field, which small models otherwise do constantly.
  */
-export const stepJsonSchema = (disasm: boolean) => ({
+export const stepJsonSchema = (disasm: boolean, revise = false) => ({
   type: "object" as const,
   properties: {
     comment: { type: "string" as const, maxLength: 200 },
@@ -144,7 +151,11 @@ export const stepJsonSchema = (disasm: boolean) => ({
       type: "array" as const,
       minItems: 1,
       maxItems: 8,
-      items: { anyOf: OP_NAMES.filter((op) => disasm || op !== "disasm").map(shape) },
+      items: {
+        anyOf: OP_NAMES.filter(
+          (op) => (disasm || op !== "disasm") && (revise || op !== "revise"),
+        ).map(shape),
+      },
     },
   },
   required: ["comment", "ops"],
@@ -160,12 +171,22 @@ export interface OpResult {
   error: boolean;
 }
 
+/** One change the model made to its language design mid-run. */
+export interface Revision {
+  field: LanguageField;
+  before: string;
+  after: string;
+}
+
 export interface OpContext {
   machine: MachineState;
   delta: Delta;
   disasmEnabled: boolean;
   /** the model's scratchpad; `note` replaces it */
   note: string;
+  /** the model's language design, or null outside the free reading; `revise` edits it */
+  language: LanguageDesign | null;
+  revisions: Revision[];
 }
 
 const u32 = (v: number): number => v >>> 0;
@@ -295,6 +316,15 @@ export function applyOp(ctx: OpContext, op: Op): OpResult {
       case "note":
         ctx.note = need(op.text, "text", op.op);
         return done("");
+      case "revise": {
+        if (!ctx.language)
+          return { op, result: "there is no language design to revise", isRead: true, error: true };
+        const field = need(op.field, "field", op.op);
+        const after = need(op.text, "text", op.op);
+        ctx.revisions.push({ field, before: ctx.language[field], after });
+        ctx.language = { ...ctx.language, [field]: after };
+        return done("");
+      }
     }
   } catch (error) {
     if (error instanceof MachineFault)

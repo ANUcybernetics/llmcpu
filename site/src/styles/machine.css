@@ -371,6 +371,83 @@
     text-wrap: pretty;
   }
 
+  /* the model's language design */
+
+  .language {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--line);
+    border-inline-start: 4px solid var(--model);
+    border-radius: var(--radius);
+    background: var(--paper);
+  }
+
+  .language h2 {
+    color: var(--model);
+  }
+
+  .language-card {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--space-1) var(--space-3);
+    margin: 0;
+  }
+
+  .language-card dt {
+    color: var(--muted);
+    font-size: var(--step-1);
+    padding-block-start: 0.15em;
+  }
+
+  .language-card dd {
+    margin: 0;
+    text-wrap: pretty;
+  }
+
+  .language-card dd.revised {
+    border-inline-start: 3px solid var(--diverge);
+    padding-inline-start: var(--space-2);
+  }
+
+  .language pre {
+    max-block-size: 20rem;
+    overflow: auto;
+    white-space: pre-wrap;
+    font-size: var(--step-1);
+  }
+
+  .trace .notes {
+    grid-area: notes;
+    display: grid;
+    gap: var(--space-1);
+    font-size: var(--step-1);
+    color: var(--diverge);
+  }
+
+  .trace .notes p {
+    margin: 0;
+  }
+
+  .trace .revision del {
+    color: var(--muted);
+  }
+
+  .trace .revision ins {
+    text-decoration: none;
+    color: var(--ink);
+  }
+
+  .trace li.inconsistent {
+    border-inline-start: 4px solid var(--diverge);
+  }
+
+  @media (width < 40rem) {
+    .language-card {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
   /* the two machines */
 
   .cpus {
@@ -514,6 +591,7 @@
     grid-template-areas:
       "idx pc took comment"
       ". . effects effects"
+      ". . notes notes"
       ". . reading reading"
       ". . verdict verdict"
       ". . detail detail";
@@ -659,6 +737,7 @@
         ". took"
         ". comment"
         ". effects"
+        ". notes"
         ". reading"
         ". verdict"
         ". detail";

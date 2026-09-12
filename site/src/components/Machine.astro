@@ -141,6 +141,16 @@ import "../styles/machine.css";
 
   <p id="latest" class="latest"></p>
 
+  <section id="language-pane" class="language" aria-labelledby="language-h" hidden>
+    <h2 id="language-h">The language <span class="muted">as the model designed it, before running anything</span></h2>
+    <p id="language-note" class="muted"></p>
+    <dl id="language" class="language-card"></dl>
+    <details id="language-detail" class="detail">
+      <summary>what the model was asked</summary>
+      <pre id="language-raw" class="mono"></pre>
+    </details>
+  </section>
+
   <div id="cpus" class="cpus">
     <section class="cpu model" aria-labelledby="model-h">
       <h2 id="model-h">The model</h2>

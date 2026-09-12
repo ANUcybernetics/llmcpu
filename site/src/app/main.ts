@@ -7,6 +7,7 @@ import {
   DEFAULT_KNOBS,
   DEFAULT_MODEL_ID,
   type Knobs,
+  inconsistentWith,
   Lockstep,
   LlmCpu,
   mockBackend,
@@ -44,6 +45,7 @@ import {
   renderAsm,
   renderCpuStatus,
   renderDisplay,
+  renderLanguage,
   renderMemory,
   renderRegisters,
   renderSource,
@@ -75,6 +77,7 @@ let busy = false;
 let gpu: { f16: boolean } | null = null;
 
 const ORACLE_ID = "oracle";
+const plural = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? "" : "s"}`;
 const NO_MARKS: Highlights = { regs: new Set(), mem: new Set(), pixels: new Set(), read: null };
 
 const hasWebGpu = (): boolean => typeof navigator !== "undefined" && "gpu" in navigator;
@@ -114,9 +117,22 @@ function newSession(image: Image, program: Program | null): Session {
     bands,
     model,
     lock: new Lockstep(cloneMachine(model)),
-    cpu: backend ? new LlmCpu(model, backend, knobs) : null,
+    cpu: backend ? new LlmCpu(model, backend, knobs, textEnd) : null,
     preview: siliconPreview(model),
   };
+}
+
+const revisedFields = (cpu: LlmCpu | null): Set<string> =>
+  new Set(cpu?.steps.flatMap((s) => s.revisions.map((r) => r.field)) ?? []);
+
+function renderLanguagePane(): void {
+  const cpu = session.cpu;
+  renderLanguage(
+    cpu?.design ?? null,
+    cpu?.language ?? null,
+    revisedFields(cpu),
+    knobs.reading === "free" && cpu !== null,
+  );
 }
 
 function renderAll(): void {
@@ -172,7 +188,19 @@ function renderState(marks: Highlights): void {
   $("measures").textContent =
     m.steps === 0
       ? ""
-      : `${m.steps} instruction${m.steps === 1 ? "" : "s"}: read ${m.bytesRead} bytes${m.jumps ? `, jumped ${m.jumps} time${m.jumps === 1 ? "" : "s"}` : ""}, printed ${m.printed} character${m.printed === 1 ? "" : "s"}, wrote ${m.touched} byte${m.touched === 1 ? "" : "s"} of memory${m.halted !== null ? ", then halted" : ""}`;
+      : [
+          `${plural(m.steps, "instruction")}: read ${m.bytesRead} bytes`,
+          m.jumps ? `jumped ${plural(m.jumps, "time")}` : null,
+          `printed ${plural(m.printed, "character")}`,
+          m.plotted ? `drew ${plural(m.plotted, "pixel")}` : null,
+          `wrote ${plural(m.touched, "byte")} of memory`,
+          m.inconsistent ? `read the same bytes two ways ${plural(m.inconsistent, "time")}` : null,
+          m.revisions ? `revised its language ${plural(m.revisions, "time")}` : null,
+          m.halted !== null ? "then halted" : null,
+        ]
+          .filter((p) => p !== null)
+          .join(", ");
+  renderLanguagePane();
   const first = s.lock.firstDivergence;
   $("divergence").textContent = !compare
     ? ""
@@ -221,13 +249,30 @@ async function stepOnce(): Promise<void> {
   updateButtons();
   const pc = s.model.pc;
   const word = pc + 4 <= RAM_SIZE ? load(s.model, pc, 4) : 0;
-  setStatus(
-    `instruction ${s.cpu.steps.length + 1}: the model is reading from 0x${pc.toString(16)}…`,
-  );
   try {
+    if (s.cpu.needsDesign()) {
+      setStatus("step zero: the model is reading the start of memory and designing its language…");
+      const design = await s.cpu.designLanguage();
+      renderLanguagePane();
+      setLatest(
+        design.design
+          ? `The model says this is written in "${design.design.name}": ${design.design.instruction}`
+          : "The model could not put its language into words; it will read without one.",
+      );
+    }
+    setStatus(
+      `instruction ${s.cpu.steps.length + 1}: the model is reading from 0x${pc.toString(16)}…`,
+    );
     const step = await s.cpu.stepInstruction();
     const cmp = isElf() ? s.lock.advance(step, s.model) : null;
-    appendTraceRow(step, comparing() ? cmp : null, s.model, word, s.bands);
+    appendTraceRow(
+      step,
+      comparing() ? cmp : null,
+      s.model,
+      word,
+      s.bands,
+      inconsistentWith(s.cpu.steps, step),
+    );
     renderState(marksFor(step));
     setLatest(step.comment);
     if (s.model.halted !== null) {

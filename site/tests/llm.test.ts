@@ -6,6 +6,7 @@ import {
   consumedRange,
   DEFAULT_KNOBS,
   effectsSummary,
+  inconsistentWith,
   Lockstep,
   LlmCpu,
   mockBackend,
@@ -18,15 +19,26 @@ import {
 } from "../src/lib/llm";
 import { cloneMachine, imageFromBytes, imageFromText, machineFromImage } from "../src/lib/rv32i";
 
-/** A backend that answers each JSON round with the next canned reply, and every reasoning request with a sentence. */
+/**
+ * A backend that answers each JSON round with the next canned reply, every
+ * reasoning request with a sentence, and the design step with the first reply
+ * when that is a design, otherwise with a stock one.
+ */
+const STOCK_DESIGN = { name: "Stock", instruction: "i", meaning: "m", state: "s", output: "o" };
 const scripted = (replies: object[]): Backend => {
   let i = 0;
   return {
     id: "scripted",
-    complete: (_messages, options) =>
-      Promise.resolve({
-        text: options.jsonSchema ? JSON.stringify(replies[i++] ?? replies.at(-1)) : "Thinking.",
-      }),
+    complete: (_messages, options) => {
+      if (!options.jsonSchema) return Promise.resolve({ text: "Thinking." });
+      const schema = options.jsonSchema as { properties: object };
+      if ("name" in schema.properties) {
+        const first = replies[0] as object;
+        if ("name" in first) i = 1;
+        return Promise.resolve({ text: JSON.stringify("name" in first ? first : STOCK_DESIGN) });
+      }
+      return Promise.resolve({ text: JSON.stringify(replies[i++] ?? replies.at(-1)) });
+    },
   };
 };
 
@@ -82,7 +94,8 @@ describe("prompts", () => {
     expect(free).not.toContain("not a valid instruction");
     const m = program("hello");
     const echo = userPrompt(m, DEFAULT_KNOBS, "", [], [], null);
-    expect(echo).toContain("next 16 bytes from pc:");
+    expect(echo).toContain("the next 64 bytes from pc");
+    expect(echo).toContain("the same bytes as text:");
     expect(echo).toContain("the same bytes as text:");
     expect(echo).toContain("first byte after the ones this instruction used");
     expect(echo).not.toContain("branches or jumps");
@@ -243,7 +256,8 @@ describe("runner guards", () => {
     // in the free reading a jump-to-self is never accepted: the step ends uncommitted
     calls = 0;
     const stuck = await new LlmCpu(program("hello"), stubborn, DEFAULT_KNOBS).stepInstruction();
-    expect(calls).toBe(6);
+    // one call designs the language, then every round is refused
+    expect(calls).toBe(7);
     expect(stuck.committed).toBe(false);
     expect(stuck.rounds.every((r) => r.results[0]!.result.includes("0x00000001 or later"))).toBe(
       true,
@@ -311,7 +325,8 @@ describe("free reading guards", () => {
     };
     const cpu = new LlmCpu(llm, lazy, DEFAULT_KNOBS);
     const step = await cpu.stepInstruction();
-    expect(calls).toBe(2);
+    // one call designs the language (and fails to, which is allowed), one is challenged, one accepted
+    expect(calls).toBe(3);
     expect(step.committed).toBe(true);
     expect(step.rounds[0]!.results[0]!.result).toContain("has not done anything yet");
     expect(llm.pc).toBe(8);
@@ -412,5 +427,152 @@ describe("pixel op", () => {
     const second = await cpu.stepInstruction();
     expect(second.rounds[0]!.results[0]!.result).toMatch(OFF_DISPLAY);
     expect(second.committed).toBe(true);
+  });
+});
+
+describe("language design", () => {
+  it("is step zero of the free reading: asked once, echoed every step, and not asked in the RISC-V readings", async () => {
+    const m = machineFromImage(imageFromText("Because I could not stop for Death"));
+    const seen: string[] = [];
+    const design = {
+      name: "Wordcode",
+      instruction: "one word per instruction",
+      meaning: "the letters spell what to print",
+      state: "a0 counts words",
+      output: "each word is printed",
+    };
+    const backend: Backend = {
+      id: "designer",
+      complete: (messages, options) => {
+        seen.push(messages.at(-1)!.content);
+        const schema = options.jsonSchema as { properties: object } | undefined;
+        if (schema && "name" in schema.properties)
+          return Promise.resolve({ text: JSON.stringify(design) });
+        return Promise.resolve({
+          text: JSON.stringify({
+            comment: "print a word",
+            ops: [
+              { op: "print", text: "Because" },
+              { op: "set_pc", addr: m.pc + 8 },
+            ],
+          }),
+        });
+      },
+    };
+    const cpu = new LlmCpu(m, backend, DEFAULT_KNOBS, 34);
+    expect(cpu.needsDesign()).toBe(true);
+    const step = await cpu.stepInstruction();
+    expect(cpu.language).toEqual(design);
+    expect(cpu.design?.design).toEqual(design);
+    expect(seen[0]).toContain("34-byte program");
+    expect(seen[0]).toContain("design the language");
+    expect(seen[1]).toContain('your language, "Wordcode"');
+    expect(seen[1]).toContain("the next 64 bytes from pc");
+    expect(step.read).toEqual([...new TextEncoder().encode("Because ")]);
+    await cpu.stepInstruction();
+    expect(seen).toHaveLength(3);
+
+    const helloMachine = program("hello");
+    const rv = new LlmCpu(
+      helloMachine,
+      mockBackend(() => helloMachine),
+      { ...DEFAULT_KNOBS, reading: "manual" },
+    );
+    expect(rv.needsDesign()).toBe(false);
+    await rv.stepInstruction();
+    expect(rv.language).toBeNull();
+  });
+
+  it("survives a design the model could not put into JSON", async () => {
+    const m = machineFromImage(imageFromText("abc"));
+    const cpu = new LlmCpu(
+      m,
+      { id: "mute", complete: () => Promise.resolve({ text: "" }) },
+      DEFAULT_KNOBS,
+    );
+    const design = await cpu.designLanguage();
+    expect(design.design).toBeNull();
+    expect(design.parseError).toBeTruthy();
+    expect(cpu.needsDesign()).toBe(false);
+  });
+
+  it("records revisions as events and undoes them on step-back", async () => {
+    const m = machineFromImage(imageFromText("abcdefgh"));
+    const cpu = new LlmCpu(
+      m,
+      scripted([
+        { name: "L", instruction: "one byte", meaning: "m", state: "s", output: "o" },
+        {
+          comment: "rethink",
+          ops: [
+            { op: "revise", field: "instruction", text: "two bytes" },
+            { op: "print", text: "ab" },
+            { op: "set_pc", addr: 2 },
+          ],
+        },
+      ]),
+      DEFAULT_KNOBS,
+    );
+    const step = await cpu.stepInstruction();
+    expect(step.revisions).toEqual([
+      { field: "instruction", before: "one byte", after: "two bytes" },
+    ]);
+    expect(cpu.language?.instruction).toBe("two bytes");
+    expect(effectsSummary(step)).toContain("revised its language (instruction)");
+    expect(runMetrics(cpu.steps, m).revisions).toBe(1);
+    cpu.undoLast();
+    expect(cpu.language?.instruction).toBe("one byte");
+  });
+
+  it("flags a reading that gives the same bytes a different effect", async () => {
+    const m = machineFromImage(imageFromText("ab ab ab"));
+    const cpu = new LlmCpu(
+      m,
+      scripted([
+        { name: "L", instruction: "i", meaning: "m", state: "s", output: "o" },
+        {
+          comment: "1",
+          ops: [
+            { op: "print", text: "ab" },
+            { op: "set_pc", addr: 3 },
+          ],
+        },
+        {
+          comment: "2",
+          ops: [
+            { op: "print", text: "ab" },
+            { op: "set_pc", addr: 6 },
+          ],
+        },
+        {
+          comment: "3",
+          ops: [
+            { op: "set_reg", reg: "a0", value: 1 },
+            { op: "set_pc", addr: 8 },
+          ],
+        },
+        {
+          comment: "4",
+          ops: [
+            { op: "print", text: "AB" },
+            { op: "set_pc", addr: 3 },
+          ],
+        },
+      ]),
+      DEFAULT_KNOBS,
+    );
+    const first = await cpu.stepInstruction();
+    const second = await cpu.stepInstruction();
+    const third = await cpu.stepInstruction();
+    expect(inconsistentWith(cpu.steps, second)).toBeNull();
+    expect(inconsistentWith(cpu.steps, third)).toBeNull();
+    expect(third.read).toEqual([0x61, 0x62]);
+    expect(first.read).toEqual([0x61, 0x62, 0x20]);
+    // a fourth reading of "ab" that prints something else contradicts the first two
+    m.pc = 0;
+    const fourth = await cpu.stepInstruction();
+    expect(fourth.read).toEqual([0x61, 0x62, 0x20]);
+    expect(inconsistentWith(cpu.steps, fourth)?.index).toBe(1);
+    expect(runMetrics(cpu.steps, m).inconsistent).toBe(1);
   });
 });

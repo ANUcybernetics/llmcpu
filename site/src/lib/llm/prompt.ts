@@ -49,6 +49,45 @@ export const DEFAULT_KNOBS: Knobs = {
 
 export const THINKING_TOKENS: Record<ThinkingKnob, number> = { off: 0, short: 120, long: 400 };
 
+/** How much of memory the free reading sees ahead of pc: enough for the model to pick its own chunk. */
+export const CONTEXT_BYTES = 64;
+
+/**
+ * The model's own account of the language the bytes are written in, made
+ * before it runs anything and shown back to it on every step.
+ */
+export interface LanguageDesign {
+  /** what the model calls the language */
+  name: string;
+  /** what one instruction is and how it can tell where one ends */
+  instruction: string;
+  /** how the pieces of an instruction decide what it does */
+  meaning: string;
+  /** what the registers and memory are for */
+  state: string;
+  /** what gets printed on the console or drawn on the display */
+  output: string;
+}
+
+export const LANGUAGE_FIELDS = ["instruction", "meaning", "state", "output"] as const;
+export type LanguageField = (typeof LANGUAGE_FIELDS)[number];
+
+const LANGUAGE_TEXT = { type: "string", maxLength: 300 } as const;
+
+/** JSON schema for the design step. */
+export const languageJsonSchema = {
+  type: "object" as const,
+  properties: {
+    name: { type: "string" as const, maxLength: 40 },
+    instruction: LANGUAGE_TEXT,
+    meaning: LANGUAGE_TEXT,
+    state: LANGUAGE_TEXT,
+    output: LANGUAGE_TEXT,
+  },
+  required: ["name", ...LANGUAGE_FIELDS],
+  additionalProperties: false as const,
+};
+
 /** A finished instruction as the trace remembers it. */
 export interface TraceEntry {
   index: number;
@@ -58,7 +97,7 @@ export interface TraceEntry {
   committed: boolean;
 }
 
-const FREE_READING = `The bytes in memory are a program written in a language only you know. Starting at pc, take the bytes that make up one instruction (usually several: a natural chunk, such as a word or a line of text), decide what that instruction means, carry it out with ops, then move pc with set_pc to the first byte after the ones you used (or wherever the instruction says to go). There is no wrong reading, but two rules: every instruction must do something as well as moving pc (print characters, draw pixels, change a register, write memory, or jump somewhere else), and the same bytes must mean the same thing each time. The machine can also halt (store to the halt port) when the program is finished.`;
+const FREE_READING = `The bytes in memory are a program written in a language only you know, and before running anything you wrote down how that language works: what an instruction is, where one ends, what its pieces mean, what the registers, memory, console and display are for. That design is shown to you every step; follow it. Starting at pc, take the bytes that make up one instruction by your own rule, decide what that instruction means, carry it out with ops, then move pc with set_pc to the first byte after the ones you used (or wherever the instruction says to go). There is no wrong reading, but two rules: every instruction must do something as well as moving pc (print characters, draw pixels, change a register, write memory, or jump somewhere else), and the same bytes must mean the same thing each time. If your design turns out not to fit the bytes, change it with the revise op, out loud, rather than quietly reading differently. The machine can also halt (store to the halt port) when the program is finished.`;
 
 const RV32I_READING = `Your job is to run the program in memory, one instruction at a time. Every instruction is exactly 4 bytes, little-endian, and the bytes at pc are shown to you each step, so you never need to read them again. For each instruction: work out what it means, carry out its effect with ops, then move pc with set_pc. Unless the instruction is a taken branch or a jump, the next instruction is at pc+4. pc must never stay where it is: an instruction that does not move pc has not been executed.`;
 
@@ -78,6 +117,9 @@ export function systemPrompt(knobs: Knobs): string {
       ? `{"op":"disasm","addr":A} -> the decoded instruction at A in assembly, with a description (the one at pc is already decoded for you each step)`
       : null,
     `{"op":"note","text":"..."} -> replace your scratchpad note, which is shown to you every step`,
+    free
+      ? `{"op":"revise","field":"instruction|meaning|state|output","text":"..."} -> rewrite one part of your language design; everyone watching sees the change`
+      : null,
   ].filter((t) => t !== null);
 
   return [
@@ -131,15 +173,39 @@ export function decodedAt(m: MachineState, addr: number): string {
   }
 }
 
-export function stateEcho(m: MachineState, knobs: Knobs, note: string): string {
+/** The design as the model is reminded of it each step. */
+export const languageEcho = (design: LanguageDesign): string =>
+  [
+    `your language, "${design.name}":`,
+    `- instruction: ${design.instruction}`,
+    `- meaning: ${design.meaning}`,
+    `- state: ${design.state}`,
+    `- output: ${design.output}`,
+  ].join("\n");
+
+/** A window of memory from `addr`, as hex rows of 16 and as text, for the free reading. */
+export function contextWindow(m: MachineState, addr: number, n = CONTEXT_BYTES): string {
+  const end = Math.min(addr + n, RAM_SIZE);
+  const rows: string[] = [];
+  for (let a = addr; a < end; a += 16)
+    rows.push(`  ${hex(a, 4)}: ${bytesAt(m, a, Math.min(16, end - a))}`);
+  return `${rows.join("\n")}\nthe same bytes as text: "${asText(m, addr, end - addr)}"`;
+}
+
+export function stateEcho(
+  m: MachineState,
+  knobs: Knobs,
+  note: string,
+  language: LanguageDesign | null = null,
+): string {
   const pc = m.pc;
   const inRam = pc + 4 <= RAM_SIZE;
   const lines = [`pc = ${hex(pc)}`];
   if (knobs.reading === "free") {
     if (pc < RAM_SIZE) {
       lines.push(
-        `next 16 bytes from pc: ${bytesAt(m, pc, 16)}`,
-        `the same bytes as text: "${asText(m, pc, 16)}"`,
+        `the next ${Math.min(CONTEXT_BYTES, RAM_SIZE - pc)} bytes from pc (take as many as your language says one instruction needs):`,
+        contextWindow(m, pc),
       );
     } else {
       lines.push("pc is outside memory");
@@ -160,6 +226,7 @@ export function stateEcho(m: MachineState, knobs: Knobs, note: string): string {
     if (sp < RAM_SIZE) lines.push(`16 bytes at sp (${hex(sp)}): ${bytesAt(m, sp, 16)}`);
     lines.push(`console output so far: ${JSON.stringify(m.output)}`);
   }
+  if (language) lines.push(languageEcho(language));
   if (note) lines.push(`your note: ${note}`);
   return lines.join("\n");
 }
@@ -180,8 +247,9 @@ export function userPrompt(
   trace: TraceEntry[],
   soFar: OpResult[],
   reasoning: string | null,
+  language: LanguageDesign | null = null,
 ): string {
-  const parts = [stateEcho(m, knobs, note)];
+  const parts = [stateEcho(m, knobs, note, language)];
   if (trace.length > 0 && knobs.window > 0)
     parts.push(`Recent instructions:\n${traceLines(trace, knobs.window)}`);
   if (reasoning) parts.push(`Your reasoning about this instruction:\n${reasoning}`);
@@ -198,6 +266,23 @@ export function userPrompt(
     parts.push(`Give the ops for the instruction that starts at pc ${hex(m.pc)}. ${finish}`);
   }
   return parts.join("\n\n");
+}
+
+/**
+ * Step zero of the free reading: before anything runs, the model is shown the
+ * start of memory and asked to write down the language it is going to read
+ * it in. The answer is constrained to `languageJsonSchema`.
+ */
+export function designPrompt(m: MachineState, imageSize: number): ChatMessage {
+  const shown = Math.min(CONTEXT_BYTES, imageSize, RAM_SIZE);
+  return {
+    role: "user",
+    content: [
+      `Nothing has run yet. Memory holds a ${imageSize}-byte program starting at ${hex(0)}, and pc is ${hex(0)}. Here are its first ${shown} bytes:`,
+      contextWindow(m, 0, shown),
+      `Before you run it, design the language it is written in. Be concrete and specific to these bytes: how many bytes make one instruction, or what marks where one ends; how the bytes of an instruction decide what it does; what the registers and the memory are for; and what the program prints on the console or draws on the display. Give the language a name. Reply with JSON only, in the form {"name": "...", "instruction": "...", "meaning": "...", "state": "...", "output": "..."}, each part one to three sentences. You will be held to this design on every instruction.`,
+    ].join("\n"),
+  };
 }
 
 export const reasoningPrompt = (knobs: Knobs): ChatMessage => ({

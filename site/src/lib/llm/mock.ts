@@ -78,6 +78,18 @@ export function oracleOps(machine: MachineState, options: MockOptions, index: nu
   return { comment: describe(instr, machine.pc), ops };
 }
 
+/** The only language the oracle knows. */
+export const ORACLE_DESIGN = {
+  name: "RV32I",
+  instruction: "Every instruction is exactly four bytes, little-endian, aligned to four.",
+  meaning:
+    "The low seven bits are the opcode; the remaining fields name registers and immediates as the RISC-V manual says.",
+  state:
+    "Thirty-two registers with x0 hard-wired to zero; memory is code, data and a stack that grows down from 0x4000.",
+  output:
+    "Stores to the console page print; stores to the display page draw; a store to 0x4100 halts.",
+};
+
 /**
  * A backend that plays a perfect (or deliberately flawed) control unit. It needs
  * to see the machine the runner is driving, so it takes a getter.
@@ -92,6 +104,8 @@ export function mockBackend(getMachine: () => MachineState, options: MockOptions
         return Promise.resolve({
           text: "The bytes at pc look like an instruction; I will decode and apply it.",
         });
+      if ("name" in ((opts.jsonSchema as { properties?: object }).properties ?? {}))
+        return Promise.resolve({ text: JSON.stringify(ORACLE_DESIGN), tokens: 0 });
       const machine = getMachine();
       const last = messages.at(-1)?.content ?? "";
       const continuing = last.includes("Ops already applied");

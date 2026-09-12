@@ -5,15 +5,26 @@
 
 import { type Delta, emptyDelta, hex, type MachineState, undo } from "../rv32i";
 import type { Backend, ChatMessage } from "./backend";
-import { applyOp, type OpResult, stepJsonSchema, type StepOutput, StepOutputSchema } from "./ops";
 import {
+  applyOp,
+  type OpResult,
+  type Revision,
+  stepJsonSchema,
+  type StepOutput,
+  StepOutputSchema,
+} from "./ops";
+import {
+  designPrompt,
   type Knobs,
+  type LanguageDesign,
+  languageJsonSchema,
   reasoningPrompt,
   systemPrompt,
   THINKING_TOKENS,
   type TraceEntry,
   userPrompt,
 } from "./prompt";
+import { z } from "zod";
 
 export const MAX_ROUNDS = 6;
 
@@ -33,39 +44,125 @@ export interface LlmStep extends TraceEntry {
   delta: Delta;
   /** false when the model never issued set_pc within MAX_ROUNDS */
   committed: boolean;
+  /** changes the model made to its language design during this instruction */
+  revisions: Revision[];
+  /** the bytes this instruction consumed, as they were when it read them; empty for a jump */
+  read: number[];
   ms: number;
 }
+
+/** The bytes between pcBefore and pcAfter as they stood before the step's own writes. */
+export function bytesRead(m: MachineState, delta: Delta, max = 64): number[] {
+  const n = delta.pcAfter - delta.pcBefore;
+  if (n <= 0 || n > max || delta.pcAfter > m.mem.length) return [];
+  const bytes = [...m.mem.subarray(delta.pcBefore, delta.pcAfter)];
+  for (const w of delta.memWrites)
+    for (let i = 0; i < w.before.length; i++) {
+      const a = w.addr + i - delta.pcBefore;
+      if (a >= 0 && a < n) bytes[a] = w.before[i]!;
+    }
+  return bytes;
+}
+
+/** Step zero of the free reading: the model's language design and how it was made. */
+export interface DesignStep {
+  messages: ChatMessage[];
+  raw: string;
+  design: LanguageDesign | null;
+  parseError: string | null;
+  tokens: number | undefined;
+  ms: number;
+}
+
+const LanguageSchema = z.object({
+  name: z.string(),
+  instruction: z.string(),
+  meaning: z.string(),
+  state: z.string(),
+  output: z.string(),
+});
 
 const now = (): number => (typeof performance === "undefined" ? Date.now() : performance.now());
 
 export class LlmCpu {
   readonly steps: LlmStep[] = [];
   note = "";
+  /** the model's language design (free reading only), null until designed */
+  language: LanguageDesign | null = null;
+  design: DesignStep | null = null;
 
   constructor(
     readonly machine: MachineState,
     readonly backend: Backend,
     public knobs: Knobs,
+    /** how many bytes the image put in memory, for the design prompt */
+    readonly imageSize: number = machine.mem.length,
   ) {}
 
-  /** Run the model through exactly one instruction. */
+  /** True when the next thing to happen is the design step rather than an instruction. */
+  needsDesign(): boolean {
+    return this.knobs.reading === "free" && this.design === null;
+  }
+
+  /**
+   * Ask the model to design its language from the start of memory. Runs at
+   * most once per run; a reply that fails to parse leaves the language null
+   * and the run continues without one, which the page reports.
+   */
+  async designLanguage(): Promise<DesignStep> {
+    const t0 = now();
+    const messages: ChatMessage[] = [
+      { role: "system", content: systemPrompt(this.knobs) },
+      designPrompt(this.machine, this.imageSize),
+    ];
+    const reply = await this.backend.complete(messages, {
+      jsonSchema: languageJsonSchema,
+      maxTokens: 700,
+      temperature: 0.4,
+    });
+    let design: LanguageDesign | null = null;
+    let parseError: string | null = null;
+    try {
+      design = LanguageSchema.parse(JSON.parse(reply.text));
+    } catch (error) {
+      parseError = (error as Error).message;
+    }
+    this.language = design;
+    this.design = {
+      messages,
+      raw: reply.text,
+      design,
+      parseError,
+      tokens: reply.tokens,
+      ms: now() - t0,
+    };
+    return this.design;
+  }
+
+  /** Run the model through exactly one instruction (designing the language first if that has not happened). */
   async stepInstruction(): Promise<LlmStep> {
+    if (this.needsDesign()) await this.designLanguage();
     const started = now();
     const m = this.machine;
     const delta = emptyDelta(m.pc);
     const system: ChatMessage = { role: "system", content: systemPrompt(this.knobs) };
     const soFar: OpResult[] = [];
     const rounds: Round[] = [];
+    const revisions: Revision[] = [];
     let reasoning: string | null = null;
     let comment = "";
     let committed = false;
     let challengedStay = false;
     let challengedNoop = false;
+    const free = this.knobs.reading === "free";
 
     if (this.knobs.thinking !== "off") {
       const messages: ChatMessage[] = [
         system,
-        { role: "user", content: userPrompt(m, this.knobs, this.note, this.steps, soFar, null) },
+        {
+          role: "user",
+          content: userPrompt(m, this.knobs, this.note, this.steps, soFar, null, this.language),
+        },
         reasoningPrompt(this.knobs),
       ];
       const t0 = now();
@@ -90,12 +187,20 @@ export class LlmCpu {
         system,
         {
           role: "user",
-          content: userPrompt(m, this.knobs, this.note, this.steps, soFar, reasoning),
+          content: userPrompt(
+            m,
+            this.knobs,
+            this.note,
+            this.steps,
+            soFar,
+            reasoning,
+            this.language,
+          ),
         },
       ];
       const t0 = now();
       const reply = await this.backend.complete(messages, {
-        jsonSchema: stepJsonSchema(this.knobs.reading === "disasm"),
+        jsonSchema: stepJsonSchema(this.knobs.reading === "disasm", free && this.language !== null),
         maxTokens: 900,
         temperature: 0.2,
       });
@@ -108,6 +213,8 @@ export class LlmCpu {
           delta,
           disasmEnabled: this.knobs.reading === "disasm",
           note: this.note,
+          language: this.language,
+          revisions,
         };
         for (const op of parsed.value.ops) {
           const didSomething =
@@ -161,6 +268,7 @@ export class LlmCpu {
           }
         }
         this.note = ctx.note;
+        this.language = ctx.language;
         soFar.push(...results);
       } else {
         soFar.push({
@@ -190,17 +298,21 @@ export class LlmCpu {
       reasoning,
       rounds,
       delta,
+      revisions,
+      read: bytesRead(m, delta),
       ms: now() - started,
     };
     this.steps.push(step);
     return step;
   }
 
-  /** Reverse the most recent instruction (step-back). Returns it, or null when there is none. */
+  /** Reverse the most recent instruction (step-back), including any revision it made to the language. Returns it, or null when there is none. */
   undoLast(): LlmStep | null {
     const step = this.steps.pop();
     if (!step) return null;
     undo(this.machine, step.delta);
+    for (const r of step.revisions.toReversed())
+      if (this.language) this.language = { ...this.language, [r.field]: r.before };
     return step;
   }
 }

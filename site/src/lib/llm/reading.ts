@@ -32,6 +32,10 @@ export interface RunMetrics {
   plotted: number;
   registersWritten: number;
   halted: number | null;
+  /** instructions whose bytes had already been read with a different effect */
+  inconsistent: number;
+  /** changes the model made to its language design */
+  revisions: number;
 }
 
 export function runMetrics(steps: LlmStep[], machine: MachineState): RunMetrics {
@@ -58,7 +62,52 @@ export function runMetrics(steps: LlmStep[], machine: MachineState): RunMetrics 
     plotted: plotted.size,
     registersWritten: regs.size,
     halted: machine.halted,
+    inconsistent: steps.filter((s) => inconsistentWith(steps, s) !== null).length,
+    revisions: steps.reduce((n, s) => n + s.revisions.length, 0),
   };
+}
+
+/** The bytes a step consumed, as a key: null for a jump or a stuck step. */
+export const chunkKey = (step: LlmStep): string | null =>
+  step.read.length > 0 ? step.read.map((b) => b.toString(16).padStart(2, "0")).join(" ") : null;
+
+/**
+ * What a step did, without the values that legitimately depend on machine
+ * state: the same bytes should print the same text, touch the same registers,
+ * write and draw the same amount, and either jump or not.
+ */
+export function effectSignature(step: LlmStep): string {
+  const regs = [...new Set(step.delta.regWrites.map((w) => w.reg))].toSorted((a, b) => a - b);
+  const mem = step.delta.memWrites
+    .filter((w) => !onDisplay(w.addr))
+    .reduce((n, w) => n + w.after.length, 0);
+  const pixels = step.delta.memWrites
+    .filter((w) => onDisplay(w.addr))
+    .reduce((n, w) => n + w.after.length, 0);
+  return JSON.stringify({
+    printed: step.delta.output,
+    regs,
+    mem,
+    pixels,
+    jump: consumedRange(step) === null,
+    halted: step.delta.halted !== null,
+  });
+}
+
+/**
+ * The earliest previous step that read exactly the same bytes and did
+ * something different, or null. This is the "same bytes, same meaning" rule
+ * of the free reading, checked from the outside.
+ */
+export function inconsistentWith(steps: LlmStep[], step: LlmStep): LlmStep | null {
+  const key = chunkKey(step);
+  if (key === null) return null;
+  const signature = effectSignature(step);
+  for (const other of steps) {
+    if (other.index >= step.index) break;
+    if (chunkKey(other) === key && effectSignature(other) !== signature) return other;
+  }
+  return null;
 }
 
 const regName = (i: number): string => ABI_NAMES[i] ?? `x${i}`;
@@ -86,5 +135,6 @@ export function effectsSummary(step: LlmStep): string {
         : `jumped to ${hex(step.pcAfter, 4)}`,
     );
   if (!step.committed) parts.push("did not move pc");
+  for (const r of step.revisions) parts.push(`revised its language (${r.field})`);
   return parts.join("; ") || "no visible effect";
 }

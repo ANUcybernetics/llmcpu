@@ -2,7 +2,15 @@
 // scratch; the panes are small enough (a few hundred bytes, 32 registers) that
 // diffing would be more code than it saves.
 
-import { type Comparison, consumedRange, effectsSummary, type LlmStep } from "../lib/llm";
+import {
+  type Comparison,
+  consumedRange,
+  type DesignStep,
+  effectsSummary,
+  LANGUAGE_FIELDS,
+  type LanguageDesign,
+  type LlmStep,
+} from "../lib/llm";
 import {
   ABI_NAMES,
   decode,
@@ -291,6 +299,8 @@ export function appendTraceRow(
   m: MachineState,
   word: number,
   bands: Bands,
+  /** an earlier step that read the same bytes but did something else */
+  contradicts: LlmStep | null = null,
 ): void {
   const list = el<HTMLOListElement>("trace");
   const li = document.createElement("li");
@@ -330,6 +340,13 @@ export function appendTraceRow(
   }
   if (!step.committed) verdictClass = "stuck";
   li.className = verdictClass;
+  if (contradicts) li.classList.add("inconsistent");
+  const revisions = step.revisions
+    .map(
+      (r) =>
+        `<p class="revision">revised what ${escape(FIELD_LABELS[r.field])}: <del>${escape(r.before)}</del> <ins>${escape(r.after)}</ins></p>`,
+    )
+    .join("");
 
   const rounds = step.rounds
     .map((r, i) => {
@@ -358,6 +375,7 @@ export function appendTraceRow(
     <span class="took" title="${escape(took)}"><span class="took-text">${escape(tookText)}</span><span class="took-bytes muted">${escape(took)}</span></span>
     <p class="comment">${escape(step.comment)}</p>
     <span class="effects">${escape(effectsSummary(step))}</span>
+    ${contradicts || revisions ? `<div class="notes">${contradicts ? `<p class="contradiction">the same bytes meant something else at instruction ${contradicts.index}</p>` : ""}${revisions}</div>` : ""}
     ${cmp ? `<span class="reading${reading.valid ? "" : " invalid"}">silicon reads: ${escape(reading.text)}</span><span class="verdict">${escape(verdict)}</span>` : ""}
     <details class="detail">
       <summary>what the model did (${step.rounds.length} ${step.rounds.length === 1 ? "round" : "rounds"}, ${(step.ms / 1000).toFixed(1)} s)</summary>
@@ -365,6 +383,55 @@ export function appendTraceRow(
     </details>`;
   list.append(li);
   li.scrollIntoView({ block: "nearest" });
+}
+
+const FIELD_LABELS: Record<(typeof LANGUAGE_FIELDS)[number], string> = {
+  instruction: "an instruction is",
+  meaning: "it means",
+  state: "registers and memory are for",
+  output: "it prints or draws",
+};
+
+/**
+ * The language card: the model's design, field by field, with the fields it
+ * has revised since marked. Hidden outside the free reading and before the
+ * design step has run.
+ */
+export function renderLanguage(
+  design: DesignStep | null,
+  language: LanguageDesign | null,
+  revised: Set<string>,
+  show: boolean,
+): void {
+  const pane = el("language-pane");
+  pane.hidden = !show;
+  if (!show) return;
+  const note = el("language-note");
+  const card = el<HTMLDListElement>("language");
+  const detail = el<HTMLDetailsElement>("language-detail");
+  card.replaceChildren();
+  if (!design) {
+    note.textContent =
+      "Not designed yet: the first press of step asks the model to read the start of memory and write down the language it thinks the bytes are in.";
+    detail.hidden = true;
+    return;
+  }
+  detail.hidden = false;
+  el("language-raw").textContent =
+    `${design.messages.at(-1)?.content ?? ""}\n\n--- the model replied (${(design.ms / 1000).toFixed(1)} s${design.tokens ? `, ${design.tokens} tokens` : ""}) ---\n${design.raw}`;
+  if (!language) {
+    note.textContent = `The model's design could not be read (${design.parseError ?? "empty reply"}), so it is running without one.`;
+    return;
+  }
+  note.textContent = `The model calls it "${language.name}"${revised.size > 0 ? `; it has since revised ${[...revised].join(", ")}` : ""}.`;
+  for (const field of LANGUAGE_FIELDS) {
+    const dt = document.createElement("dt");
+    dt.textContent = FIELD_LABELS[field];
+    const dd = document.createElement("dd");
+    dd.textContent = language[field];
+    dd.classList.toggle("revised", revised.has(field));
+    card.append(dt, dd);
+  }
 }
 
 export function popTraceRow(): void {
