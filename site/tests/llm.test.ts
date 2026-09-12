@@ -515,6 +515,14 @@ describe("language design", () => {
             { op: "set_pc", addr: 2 },
           ],
         },
+        {
+          comment: "again",
+          ops: [
+            { op: "revise", field: "instruction", text: "two bytes" },
+            { op: "print", text: "cd" },
+            { op: "set_pc", addr: 4 },
+          ],
+        },
       ]),
       DEFAULT_KNOBS,
     );
@@ -522,9 +530,15 @@ describe("language design", () => {
     expect(step.revisions).toEqual([
       { field: "instruction", before: "one byte", after: "two bytes" },
     ]);
+    // saying the same thing again is not a revision
+    const again = await cpu.stepInstruction();
+    expect(again.revisions).toEqual([]);
+    expect(again.rounds[0]!.results[0]!.result).toContain("nothing was revised");
     expect(cpu.language?.instruction).toBe("two bytes");
     expect(effectsSummary(step)).toContain("revised its language (instruction)");
     expect(runMetrics(cpu.steps, m).revisions).toBe(1);
+    cpu.undoLast();
+    expect(cpu.language?.instruction).toBe("two bytes");
     cpu.undoLast();
     expect(cpu.language?.instruction).toBe("one byte");
   });

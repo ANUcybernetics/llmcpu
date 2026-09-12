@@ -321,6 +321,9 @@ export function applyOp(ctx: OpContext, op: Op): OpResult {
           return { op, result: "there is no language design to revise", isRead: true, error: true };
         const field = need(op.field, "field", op.op);
         const after = need(op.text, "text", op.op);
+        // a 2B model will chant the same revision six times in a row; only a change is an event
+        if (after === ctx.language[field])
+          return done(`your ${field} rule already says that; nothing was revised`);
         ctx.revisions.push({ field, before: ctx.language[field], after });
         ctx.language = { ...ctx.language, [field]: after };
         return done("");

@@ -204,7 +204,7 @@ export function stateEcho(
   if (knobs.reading === "free") {
     if (pc < RAM_SIZE) {
       lines.push(
-        `the next ${Math.min(CONTEXT_BYTES, RAM_SIZE - pc)} bytes from pc (take as many as your language says one instruction needs):`,
+        `the next ${Math.min(CONTEXT_BYTES, RAM_SIZE - pc)} bytes from pc (take as many as your language says one instruction needs; there is no need to peek at these, only at bytes beyond them):`,
         contextWindow(m, pc),
       );
     } else {
