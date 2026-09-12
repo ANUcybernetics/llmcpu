@@ -26,8 +26,11 @@ make        # builds every */main.c into <dir>/main.elf, disasm.txt, lines.json
 make clean  # removes intermediate *.o only; elf/disasm/lines.json are committed
 ```
 
-Toolchain: `clang --target=riscv32`, `ld.lld`, and the `llvm-*-18` utilities.
-See the dispatch table in `Makefile` for the exact flags.
+Toolchain: Ubuntu 24.04's `clang-18`, `lld-18` and `llvm-18` packages, plus `uv`
+for `lines.py`. See `Makefile` for the exact flags. The build is reproducible
+byte for byte with those packages, and `.github/workflows/programs.yml` rebuilds
+on every change under `programs/` and fails if the committed artefacts differ;
+another clang produces different bytes, so don't regenerate with one.
 
 ## No `*`, `/`, `%`
 

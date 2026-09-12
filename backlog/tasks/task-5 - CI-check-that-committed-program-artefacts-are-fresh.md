@@ -1,9 +1,10 @@
 ---
 id: TASK-5
 title: CI check that committed program artefacts are fresh
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-12 04:36'
+updated_date: '2026-09-12 07:06'
 labels: []
 dependencies: []
 ordinal: 5000

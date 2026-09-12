@@ -1,0 +1,52 @@
+# Rebuild every program with the same Ubuntu 24.04 llvm-18 packages the
+# committed artefacts were built with and fail if main.elf, disasm.txt or
+# lines.json differ. programs/Makefile makes the build byte-for-byte
+# reproducible; this job only notices when someone forgets to run make.
+name: Program artefacts are fresh
+
+on:
+  push:
+    branches: [main]
+    paths: [programs/**, mise.toml, .github/workflows/programs.yml]
+  pull_request:
+    paths: [programs/**, mise.toml, .github/workflows/programs.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # The exact Ubuntu 24.04 archive revision of clang-18, lld-18 and llvm-18.
+  # If apt no longer has it, Ubuntu rebuilt the toolchain: install the new
+  # packages locally, run make, commit the artefacts and bump this.
+  LLVM_DEB_VERSION: 1:18.1.3-1ubuntu1
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v4
+
+      - name: Install the pinned llvm-18 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            "clang-18=$LLVM_DEB_VERSION" \
+            "lld-18=$LLVM_DEB_VERSION" \
+            "llvm-18=$LLVM_DEB_VERSION"
+          clang-18 --version
+
+      - name: Rebuild every program
+        working-directory: programs
+        run: make -B
+
+      - name: Compare with the committed artefacts
+        run: |
+          if [ -n "$(git status --porcelain -- programs)" ]; then
+            git status --short -- programs
+            git diff --stat -- programs
+            echo "::error::programs/ artefacts are stale: run make in programs/ and commit main.elf, disasm.txt and lines.json"
+            exit 1
+          fi

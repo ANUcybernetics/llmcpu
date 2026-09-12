@@ -21,7 +21,9 @@ check commands for both halves and the real-model test recipe; run commands with
   `volatile` on purpose.
 - `main.elf`, `disasm.txt` and `lines.json` are build outputs: `make` in
   `programs/` after touching a source, never edit them. The test suite
-  cross-checks the decoder against `disasm.txt`, so a stale listing fails it.
+  cross-checks the decoder against `disasm.txt`, so a stale listing fails it,
+  and CI rebuilds everything with the pinned Ubuntu 24.04 llvm-18 packages and
+  fails on any differing byte, so build with those packages and no other.
 - The grammar in `site/src/lib/llm/ops.ts` is one shape per op, fields required,
   and every number admits a hex string. Both were learned the hard way: a flat
   schema let a 2B model put addresses in the wrong field, and an integer-only

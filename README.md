@@ -29,8 +29,9 @@ Two halves:
 
 ## Working on it
 
-Toolchain comes from `mise.toml` (node, pnpm); the programs additionally need
-`clang`, `ld.lld` and the LLVM binutils (`llvm-objdump-18` et al.) plus `uv`.
+Toolchain comes from `mise.toml` (node, pnpm, uv); the programs additionally
+need Ubuntu 24.04's `clang-18`, `lld-18` and `llvm-18` packages, which CI
+rebuilds with to check the committed artefacts are fresh.
 
 ```sh
 cd site
