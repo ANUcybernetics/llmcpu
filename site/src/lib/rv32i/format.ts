@@ -5,6 +5,7 @@
 
 import { ABI_NAMES, type Instruction, isBranch, isLoad, isStore } from "./isa";
 
+/** Zero-padded hex; `digits` 0 gives the shortest form. */
 export const hex = (value: number, digits = 8): string =>
   `0x${(value >>> 0).toString(16).padStart(digits, "0")}`;
 
@@ -53,6 +54,8 @@ export function formatFriendly(instr: Instruction, pc: number): string {
   if (op === "jalr" && rd === 0 && imm === 0) return `jr ${r(rs1)}`;
   if (op === "beq" && rs2 === 0) return `beqz ${r(rs1)}, ${shortHex(target(instr, pc))}`;
   if (op === "bne" && rs2 === 0) return `bnez ${r(rs1)}, ${shortHex(target(instr, pc))}`;
+  // objdump writes U-type immediates in units of 4096; the actual value is clearer
+  if (instr.format === "U") return `${op} ${r(rd)}, ${hex(imm >>> 0, 0)}`;
   return formatCanonical(instr, pc).replace("\t", " ");
 }
 
@@ -96,8 +99,9 @@ const WIDTH: Partial<Record<Instruction["op"], string>> = {
 export function describe(instr: Instruction, pc: number): string {
   const { op, rd, rs1, rs2, imm } = instr;
   const t = shortHex(target(instr, pc));
-  if (op === "lui") return `put ${imm} into ${r(rd)} (an upper-immediate constant)`;
-  if (op === "auipc") return `put the current address plus ${imm} into ${r(rd)}`;
+  if (op === "lui") return `put ${hex(imm >>> 0, 0)} into ${r(rd)}`;
+  if (op === "auipc")
+    return `put ${hex(pc, 0)} + ${hex(imm >>> 0, 0)} = ${hex((pc + imm) >>> 0, 0)} into ${r(rd)}`;
   if (op === "jal")
     return rd === 0 ? `jump to ${t}` : `jump to ${t}, saving the return address in ${r(rd)}`;
   if (op === "jalr")

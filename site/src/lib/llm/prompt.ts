@@ -5,6 +5,10 @@
 import {
   ABI_NAMES,
   CONSOLE_ADDR,
+  decode,
+  DecodeError,
+  describe,
+  formatFriendly,
   HALT_ADDR,
   hex,
   load,
@@ -55,15 +59,15 @@ export function systemPrompt(knobs: Knobs): string {
     `{"op":"alu","fn":"add|sub|and|or|xor|sll|srl|sra|slt|sltu|eq|ne","a":X,"b":Y} -> exact 32-bit arithmetic; use it rather than calculating in your head`,
     `{"op":"set_pc","addr":A} -> move the program counter; this finishes the current instruction`,
     knobs.decode === "disasm"
-      ? `{"op":"disasm","addr":A} -> the decoded instruction at A in assembly, with a description`
+      ? `{"op":"disasm","addr":A} -> the decoded instruction at A in assembly, with a description (the one at pc is already decoded for you each step)`
       : null,
     `{"op":"note","text":"..."} -> replace your scratchpad note, which is shown to you every step`,
   ].filter((t) => t !== null);
 
   return [
     `You are the control unit of a small 32-bit computer. Memory is ${RAM_SIZE} bytes at addresses ${hex(0)} to ${hex(RAM_SIZE - 1)}. There are 32 registers (x0 to x31, with the usual names ${ABI_NAMES.join(" ")}); zero is always 0. Two memory-mapped ports: storing a word to ${hex(CONSOLE_ADDR)} prints its low byte as a character, and storing a word to ${hex(HALT_ADDR)} halts the machine with that exit code.`,
-    `Your job is to run the program in memory, one instruction at a time. An instruction is the 4 bytes at pc, little-endian. For each instruction: work out what it means, carry out its effect with ops, then move pc (to pc+4, or to a branch or jump target). Moving pc is what finishes an instruction.`,
-    `Reply with JSON only, in the form {"comment": "...", "ops": [ ... ]}. The comment is one plain-English sentence, for the people watching, saying what this instruction does. Ops run in order. Ops that return information (peek, load, get_reg, alu, disasm) pause the list: you get their results back and then continue with more ops for the same instruction. Numbers are unsigned 32-bit integers, or hex strings such as "0xffffffff".`,
+    `Your job is to run the program in memory, one instruction at a time. Every instruction is exactly 4 bytes, little-endian, and the bytes at pc are shown to you each step, so you never need to read them again. For each instruction: work out what it means, carry out its effect with ops, then move pc with set_pc. Unless the instruction is a taken branch or a jump, the next instruction is at pc+4. pc must never stay where it is: an instruction that does not move pc has not been executed.`,
+    `Reply with JSON only, in the form {"comment": "...", "ops": [ ... ]}. The comment is one plain-English sentence, for the people watching, saying what this instruction does. Ops run in order. Ops that return information (peek, load, get_reg, alu, disasm) pause the list: you get their results back and then continue with more ops for the same instruction. Numbers are unsigned 32-bit values, written as hex strings such as "0x00000004" (decimal integers also work).`,
     `Available ops:\n${tools.map((t) => `- ${t}`).join("\n")}`,
     knobs.decode === "blind" ? null : RV32I_MANUAL,
     `If the bytes at pc are not a valid instruction, do not stop: decide what they most plausibly mean, act on that, and move on. Never refuse and never give up; the machine only stops when something stores to ${hex(HALT_ADDR)}.`,
@@ -87,6 +91,19 @@ const bytesAt = (m: MachineState, addr: number, n: number): string =>
     return a >= 0 && a < RAM_SIZE ? load(m, a, 1).toString(16).padStart(2, "0") : "..";
   }).join(" ");
 
+/** What the silicon decoder makes of the word at an address, for the top rung of the decode-help ladder. */
+export function decodedAt(m: MachineState, addr: number): string {
+  const word = load(m, addr, 4);
+  try {
+    const instr = decode(word);
+    return `${formatFriendly(instr, addr)}  (${describe(instr, addr)})`;
+  } catch (error) {
+    if (error instanceof DecodeError)
+      return `${hex(word)} is not a valid RV32I instruction; decide what it should do`;
+    throw error;
+  }
+}
+
 export function stateEcho(m: MachineState, knobs: Knobs, note: string): string {
   const pc = m.pc;
   const inRam = pc + 4 <= RAM_SIZE;
@@ -96,6 +113,8 @@ export function stateEcho(m: MachineState, knobs: Knobs, note: string): string {
       ? `bytes at pc: ${bytesAt(m, pc, 4)}  (as a little-endian word: ${hex(load(m, pc, 4))})`
       : `pc is outside memory`,
   ];
+  if (knobs.decode === "disasm" && inRam)
+    lines.push(`decoded by the hardware decoder: ${decodedAt(m, pc)}`);
   if (knobs.echo !== "minimal") lines.push(`registers: ${registers(m, knobs.echo === "full")}`);
   if (knobs.echo === "full") {
     lines.push(`next 16 bytes after pc: ${bytesAt(m, pc + 4, 16)}`);
@@ -131,9 +150,13 @@ export function userPrompt(
     parts.push(
       `Ops already applied for this instruction and their results:\n${soFar.map((r) => `- ${JSON.stringify(r.op)}${r.result ? ` => ${r.result}` : ""}`).join("\n")}`,
     );
-    parts.push(`Continue with the remaining ops for this instruction. Finish with set_pc.`);
+    parts.push(
+      `Continue with the remaining ops for this instruction. Finish with set_pc (${hex(m.pc + 4)} unless this instruction branches or jumps).`,
+    );
   } else {
-    parts.push(`Give the ops for the instruction at pc ${hex(m.pc)}. Finish with set_pc.`);
+    parts.push(
+      `Give the ops for the instruction at pc ${hex(m.pc)}. Finish with set_pc (${hex(m.pc + 4)} unless this instruction branches or jumps).`,
+    );
   }
   return parts.join("\n\n");
 }

@@ -10,6 +10,7 @@ import {
   LlmCpu,
   mockBackend,
   MODEL_OPTIONS,
+  webLlmModelId,
 } from "../lib/llm";
 import { PROGRAMS, type Program, programBySlug } from "../lib/programs";
 import {
@@ -275,13 +276,22 @@ async function loadModel(id: string): Promise<void> {
         "Downloading the model. The first time takes a while; your browser caches it afterwards.";
       // the runtime is large; only fetch it when a real model is requested
       const { createWebLlmBackend } = await import("../lib/llm/webllm");
-      backend = await createWebLlmBackend(id, (report) => {
+      backend = await createWebLlmBackend(webLlmModelId(id, gpu?.f16 ?? true), (report) => {
         progress.value = Math.max(0, Math.min(1, report.progress));
         note.textContent = report.text;
       });
       note.textContent = `${MODEL_OPTIONS.find((m) => m.id === id)?.label ?? id} is loaded and running on your GPU.`;
     }
     session.cpu = new LlmCpu(session.model, backend, knobs);
+    // a handle for poking at the loaded backend from the console
+    Object.assign(window, {
+      llmcpu: {
+        backend,
+        get session() {
+          return session;
+        },
+      },
+    });
     setStatus("model ready. Step through the program, or press run.");
   } catch (error) {
     note.textContent = `Could not load the model: ${(error as Error).message}`;
@@ -357,15 +367,18 @@ function wireFeed(): void {
   });
 }
 
-/** WebGPU is usable only if an adapter actually answers; headless and some virtual machines expose the API without one. */
-async function webGpuAvailable(): Promise<boolean> {
-  if (!hasWebGpu()) return false;
+/** null when there is no usable adapter (headless and some virtual machines expose the API without one). */
+async function webGpu(): Promise<{ f16: boolean } | null> {
+  if (!hasWebGpu()) return null;
   try {
-    return (await navigator.gpu.requestAdapter()) !== null;
+    const adapter = await navigator.gpu.requestAdapter();
+    return adapter ? { f16: adapter.features.has("shader-f16") } : null;
   } catch {
-    return false;
+    return null;
   }
 }
+
+let gpu: { f16: boolean } | null = null;
 
 async function populateSelects(): Promise<void> {
   const program = $<HTMLSelectElement>("program");
@@ -376,15 +389,19 @@ async function populateSelects(): Promise<void> {
     program.append(option);
   }
   const model = $<HTMLSelectElement>("model");
-  const gpu = await webGpuAvailable();
+  gpu = await webGpu();
   for (const m of MODEL_OPTIONS) {
     const option = document.createElement("option");
     option.value = m.id;
     option.textContent = `${m.label} (${(m.vramMb / 1024).toFixed(1)} GB)`;
-    option.disabled = !gpu;
+    option.disabled = gpu === null;
     model.append(option);
   }
   model.value = gpu ? DEFAULT_MODEL_ID : ORACLE_ID;
+  if (gpu && !gpu.f16) {
+    $("model-note").textContent =
+      "This GPU does not expose 16-bit shader arithmetic, so the larger 32-bit model builds will be used.";
+  }
   if (!gpu) {
     $("model-note").textContent =
       "This browser has no usable WebGPU, so a language model cannot run here. The oracle still works. Chrome, Edge, Safari 26 and recent Firefox all support WebGPU on hardware with a GPU.";

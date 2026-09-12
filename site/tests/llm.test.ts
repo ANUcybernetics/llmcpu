@@ -8,7 +8,7 @@ import {
   mockBackend,
   OpSchema,
   parseStep,
-  STEP_JSON_SCHEMA,
+  stepJsonSchema,
   systemPrompt,
   userPrompt,
 } from "../src/lib/llm";
@@ -43,8 +43,15 @@ describe("op parsing", () => {
     });
   });
 
-  it("has a JSON schema that names every op", () => {
-    expect(STEP_JSON_SCHEMA.properties.ops.items.properties.op.enum).toContain("set_pc");
+  it("has one grammar shape per op with that op's fields required", () => {
+    const shapes = stepJsonSchema(false).properties.ops.items.anyOf;
+    expect(shapes.map((s) => s.properties.op.const)).not.toContain("disasm");
+    expect(
+      stepJsonSchema(true).properties.ops.items.anyOf.map((s) => s.properties.op.const),
+    ).toContain("disasm");
+    const setReg = shapes.find((s) => s.properties.op.const === "set_reg")!;
+    expect(setReg.required).toEqual(["op", "reg", "value"]);
+    expect(setReg.additionalProperties).toBe(false);
   });
 });
 
@@ -163,5 +170,60 @@ describe("step-back", () => {
     expect([...lock.silicon.regs]).toEqual([...before.regs]);
     expect(cpu.steps).toHaveLength(0);
     expect(lock.status).toEqual({ kind: "running" });
+  });
+});
+
+describe("webllm quirks", () => {
+  it("strips the empty thinking block Qwen prepends", async () => {
+    const { stripThinking } = await import("../src/lib/llm/webllm");
+    expect(stripThinking('<think>\n\n</think>\n\n{"a":1}')).toBe('{"a":1}');
+    expect(stripThinking('{"a":1}')).toBe('{"a":1}');
+    expect(
+      parseStep(
+        stripThinking('<think>\n\n</think>\n\n{"comment":"x","ops":[{"op":"set_pc","addr":4}]}'),
+      ),
+    ).toMatchObject({ ok: true });
+  });
+});
+
+describe("runner guards", () => {
+  it("challenges a set_pc that leaves pc where it is, then accepts a repeat", async () => {
+    const llm = program("hello");
+    let calls = 0;
+    const stubborn = {
+      id: "stubborn",
+      complete: () => {
+        calls++;
+        return Promise.resolve({
+          text: JSON.stringify({ comment: "stay", ops: [{ op: "set_pc", addr: 0 }] }),
+        });
+      },
+    };
+    const cpu = new LlmCpu(llm, stubborn, DEFAULT_KNOBS);
+    const step = await cpu.stepInstruction();
+    expect(calls).toBe(2);
+    expect(step.committed).toBe(true);
+    expect(step.rounds[0]!.results[0]!.error).toBe(true);
+    expect(step.rounds[0]!.results[0]!.result).toContain("must move pc");
+    expect(llm.pc).toBe(0);
+  });
+
+  it("hands the model the decoded instruction on the top rung of the decode ladder", () => {
+    const m = program("hello");
+    const text = userPrompt(m, { ...DEFAULT_KNOBS, decode: "disasm" }, "", [], [], null);
+    expect(text).toContain("decoded by the hardware decoder: auipc sp, 0x4000");
+    expect(userPrompt(m, { ...DEFAULT_KNOBS, decode: "manual" }, "", [], [], null)).not.toContain(
+      "hardware decoder",
+    );
+  });
+});
+
+describe("grammar numbers", () => {
+  it("admits hex strings as well as integers everywhere a number goes", () => {
+    const setPc = stepJsonSchema(false).properties.ops.items.anyOf.find(
+      (s) => s.properties.op.const === "set_pc",
+    )!;
+    expect(JSON.stringify(setPc.properties)).toContain("0x[0-9a-fA-F]+");
+    expect(OpSchema.parse({ op: "set_pc", addr: "0x00000004" })).toMatchObject({ addr: 4 });
   });
 });

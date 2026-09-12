@@ -5,6 +5,10 @@ import type { Backend, ChatMessage, Completion, CompletionOptions } from "./back
 
 export type { InitProgressReport };
 
+/** Qwen-style thinking blocks: with thinking disabled the runtime still prepends an empty one to the content. */
+const THINK_BLOCK = /^\s*<think>[\s\S]*?<\/think>\s*/;
+export const stripThinking = (text: string): string => text.replace(THINK_BLOCK, "");
+
 export const hasWebGpu = (): boolean => typeof navigator !== "undefined" && "gpu" in navigator;
 
 export async function createWebLlmBackend(
@@ -25,8 +29,15 @@ export async function createWebLlmBackend(
         // Qwen3 thinks by default; the runner manages its own reasoning phase
         extra_body: { enable_thinking: false },
       });
+      const choice = reply.choices[0];
+      // eslint-disable-next-line no-console
+      console.debug("webllm reply", {
+        finish: choice?.finish_reason,
+        usage: reply.usage,
+        message: choice?.message,
+      });
       return {
-        text: reply.choices[0]?.message.content ?? "",
+        text: stripThinking(choice?.message.content ?? ""),
         tokens: reply.usage?.completion_tokens,
       };
     },

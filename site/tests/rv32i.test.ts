@@ -136,3 +136,12 @@ describe("images", () => {
     );
   });
 });
+
+describe("U-type rendering", () => {
+  it("shows the real immediate rather than objdump's units of 4096", () => {
+    expect(formatFriendly(decode(0x000045b7), 0)).toBe("lui a1, 0x4000");
+    expect(formatFriendly(decode(0x00004117), 0)).toBe("auipc sp, 0x4000");
+    expect(describeInstr(decode(0x00004117), 0)).toBe("put 0x0 + 0x4000 = 0x4000 into sp");
+    expect(formatCanonical(decode(0x000045b7), 0)).toBe("lui\ta1, 4");
+  });
+});

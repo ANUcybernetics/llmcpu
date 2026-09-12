@@ -47,6 +47,25 @@ The "perfect oracle" entry in the model dropdown is the silicon CPU answering in
 the model's place. It needs no download or GPU and is the quickest way to see
 the machinery work, including in tests and on machines without WebGPU.
 
+### Trying a real model from the command line
+
+Headless Chrome gets no WebGPU adapter by default. On a Linux box with an
+NVIDIA card and the Vulkan ICD installed, `agent-browser` can reach it:
+
+```sh
+cd site && mise exec -- pnpm run build && mise exec -- pnpm exec astro preview --port 4321 &
+export AGENT_BROWSER_SESSION=gpu
+agent-browser --args "--no-sandbox,--enable-unsafe-webgpu,--ignore-gpu-blocklist,--enable-features=Vulkan,--use-vulkan=native,--use-angle=vulkan" \
+  open http://localhost:4321/llmcpu/
+agent-browser select "#model" "Qwen3.5-2B" && agent-browser click "#load-model"   # ~1 min first time, cached after
+agent-browser click "#step"                     # then read #status, #latest, #trace
+```
+
+The adapter reports no `shader-f16`, so the page picks the q4f32 model builds
+there. Once a model is loaded, `window.llmcpu.backend.complete(messages,
+{ jsonSchema, maxTokens, temperature })` in the page console calls it directly,
+which is the fastest way to try a schema or prompt change.
+
 ## How a step works
 
 1. The prompt carries the machine state (how much is a knob), the model's own

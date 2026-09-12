@@ -3,9 +3,9 @@
 // runs out of rounds). Every step records everything it saw and did so the UI
 // can show it and the lockstep comparator can judge it.
 
-import { type Delta, emptyDelta, type MachineState, undo } from "../rv32i";
+import { type Delta, emptyDelta, hex, type MachineState, undo } from "../rv32i";
 import type { Backend, ChatMessage } from "./backend";
-import { applyOp, type OpResult, STEP_JSON_SCHEMA, type StepOutput, StepOutputSchema } from "./ops";
+import { applyOp, type OpResult, stepJsonSchema, type StepOutput, StepOutputSchema } from "./ops";
 import {
   type Knobs,
   reasoningPrompt,
@@ -59,6 +59,7 @@ export class LlmCpu {
     let reasoning: string | null = null;
     let comment = "";
     let committed = false;
+    let challengedStay = false;
 
     if (this.knobs.thinking !== "off") {
       const messages: ChatMessage[] = [
@@ -93,8 +94,8 @@ export class LlmCpu {
       ];
       const t0 = now();
       const reply = await this.backend.complete(messages, {
-        jsonSchema: STEP_JSON_SCHEMA,
-        maxTokens: 600,
+        jsonSchema: stepJsonSchema(this.knobs.decode === "disasm"),
+        maxTokens: 900,
         temperature: 0.2,
       });
       const parsed = parseStep(reply.text);
@@ -108,6 +109,17 @@ export class LlmCpu {
           note: this.note,
         };
         for (const op of parsed.value.ops) {
+          if (op.op === "set_pc" && (op.addr ?? -1) >>> 0 === delta.pcBefore && !challengedStay) {
+            // a jump-to-self is legal but rare; a model that leaves pc alone has usually skipped the instruction
+            challengedStay = true;
+            results.push({
+              op,
+              result: `pc is already ${hex(delta.pcBefore)}; an instruction must move pc. If this instruction really jumps to itself, issue set_pc ${hex(delta.pcBefore)} again; otherwise set_pc to ${hex(delta.pcBefore + 4)} or the branch target`,
+              isRead: true,
+              error: true,
+            });
+            break;
+          }
           const result = applyOp(ctx, op);
           results.push(result);
           if (op.op === "set_pc" && !result.error) {

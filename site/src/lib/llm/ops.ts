@@ -88,41 +88,57 @@ export type Op = z.infer<typeof OpSchema>;
 
 export const StepOutputSchema = z.object({
   comment: z.string(),
-  ops: z.array(OpSchema).min(1).max(12),
+  ops: z.array(OpSchema).min(1).max(8),
 });
 export type StepOutput = z.infer<typeof StepOutputSchema>;
 
-/** JSON schema for constrained decoding. Kept flat and free of oneOf so every grammar engine accepts it. */
-export const STEP_JSON_SCHEMA = {
-  type: "object",
+// integers or hex strings: a grammar that only admits JSON integers traps a
+// model that wants to write "0x4000" into emitting a bare 0 once the "x" is refused
+const INT = {
+  anyOf: [{ type: "integer" }, { type: "string", pattern: "^-?(0x[0-9a-fA-F]+|[0-9]+)$" }],
+} as const;
+const SIZE = { type: "integer", enum: [1, 2, 4] } as const;
+const REG = { type: "string", enum: [...ABI_NAMES, "fp"] } as const;
+
+/** One grammar shape per op: only that op's fields, all of them required, nothing else allowed. */
+const OP_SHAPES: Record<OpName, Record<string, object>> = {
+  peek: { addr: INT, n: INT },
+  load: { addr: INT, size: SIZE },
+  store: { addr: INT, size: SIZE, value: INT },
+  get_reg: { reg: REG },
+  set_reg: { reg: REG, value: INT },
+  alu: { fn: { type: "string", enum: [...ALU_OPS] }, a: INT, b: INT },
+  set_pc: { addr: INT },
+  disasm: { addr: INT },
+  note: { text: { type: "string", maxLength: 200 } },
+};
+
+const shape = (op: OpName) => ({
+  type: "object" as const,
+  properties: { op: { const: op }, ...OP_SHAPES[op] },
+  required: ["op", ...Object.keys(OP_SHAPES[op])],
+  additionalProperties: false as const,
+});
+
+/**
+ * JSON schema for constrained decoding. A discriminated shape per op means the
+ * grammar itself forbids a `set_reg` without a value or a `set_pc` with its
+ * address in the wrong field, which small models otherwise do constantly.
+ */
+export const stepJsonSchema = (disasm: boolean) => ({
+  type: "object" as const,
   properties: {
-    comment: { type: "string", maxLength: 300 },
+    comment: { type: "string" as const, maxLength: 200 },
     ops: {
-      type: "array",
+      type: "array" as const,
       minItems: 1,
-      maxItems: 12,
-      items: {
-        type: "object",
-        properties: {
-          op: { type: "string", enum: [...OP_NAMES] },
-          addr: { type: "integer" },
-          size: { type: "integer", enum: [1, 2, 4] },
-          n: { type: "integer" },
-          value: { type: "integer" },
-          reg: { type: "string" },
-          fn: { type: "string", enum: [...ALU_OPS] },
-          a: { type: "integer" },
-          b: { type: "integer" },
-          text: { type: "string", maxLength: 200 },
-        },
-        required: ["op"],
-        additionalProperties: false,
-      },
+      maxItems: 8,
+      items: { anyOf: OP_NAMES.filter((op) => disasm || op !== "disasm").map(shape) },
     },
   },
   required: ["comment", "ops"],
-  additionalProperties: false,
-} as const;
+  additionalProperties: false as const,
+});
 
 export interface OpResult {
   op: Op;
@@ -175,8 +191,14 @@ export function alu(fn: AluOp, a: number, b: number): number {
   }
 }
 
+const HINTS: Partial<Record<OpName, string>> = {
+  set_reg: "; to compute the value, use alu first and then set_reg with its result",
+  store: "; to compute the value, use alu first and then store with its result",
+  set_pc: "; give the address of the next instruction",
+};
+
 const need = <T>(v: T | undefined, field: string, op: OpName): T => {
-  if (v === undefined) throw new MachineFault(`${op} needs a "${field}" field`);
+  if (v === undefined) throw new MachineFault(`${op} needs a "${field}" field${HINTS[op] ?? ""}`);
   return v;
 };
 
