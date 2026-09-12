@@ -39,7 +39,12 @@ export interface Recording {
   meta: RecordingMeta;
   /** the memory image the run started from, base64 */
   image: string;
-  /** the system prompt every round was sent; rounds carry it as an empty system message to save space */
+  /**
+   * The system prompt every round was sent. To keep files small, rounds carry
+   * it as an empty system message, and only the first round of an instruction
+   * carries messages at all: later rounds were that prompt plus the results
+   * listed on the earlier rounds.
+   */
   system: string;
   design: DesignStep | null;
   steps: LlmStep[];
@@ -82,7 +87,10 @@ export function recordRun(
     image: toBase64(image.bytes),
     system,
     design: cpu.design ? strip(cpu.design) : null,
-    steps: cpu.steps.map((s) => ({ ...s, rounds: s.rounds.map(strip) })),
+    steps: cpu.steps.map((s) => ({
+      ...s,
+      rounds: s.rounds.map((r, i) => (i === 0 ? strip(r) : { ...r, messages: [] })),
+    })),
   };
 }
 
