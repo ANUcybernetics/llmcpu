@@ -13,7 +13,8 @@ set -euo pipefail
 MODEL=$1; INPUT=$2; MAX=$3; OUT=$4; ID=$5; TITLE=$6; HARDWARE=${7:-unknown hardware}; NOTES=${8:-}
 export AGENT_BROWSER_SESSION=${AGENT_BROWSER_SESSION:-gpu}
 ab() { agent-browser "$@"; }
-ab open http://localhost:4321/llmcpu/ >/dev/null
+# BROWSER_ARGS lets a fresh session start with the WebGPU flags (see README)
+ab ${BROWSER_ARGS:+--args "$BROWSER_ARGS"} open http://localhost:4321/llmcpu/ >/dev/null
 ok=false
 for i in $(seq 1 30); do
   sleep 2
