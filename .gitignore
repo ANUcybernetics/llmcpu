@@ -1,0 +1,7 @@
+# node / astro
+node_modules/
+.astro/
+/site/dist/
+
+# programs toolchain intermediates (the .elf and lines.json outputs are committed)
+/programs/*/*.o
