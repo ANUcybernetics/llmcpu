@@ -12,6 +12,7 @@ import {
   MachineFault,
   RAM_SIZE,
   step,
+  undo,
 } from "../rv32i";
 import type { LlmStep } from "./runner";
 
@@ -28,6 +29,7 @@ export interface Divergence {
 export interface Comparison {
   index: number;
   siliconDelta: Delta | null;
+  statusBefore: SiliconStatus;
   status: SiliconStatus;
   divergences: Divergence[];
 }
@@ -76,6 +78,7 @@ export class Lockstep {
   /** Advance silicon by one instruction to match a committed model step, then compare the machines. */
   advance(llmStep: LlmStep, llm: MachineState): Comparison {
     let siliconDelta: Delta | null = null;
+    const statusBefore = this.status;
     if (this.status.kind === "running") {
       try {
         siliconDelta = step(this.silicon);
@@ -95,10 +98,21 @@ export class Lockstep {
     const comparison: Comparison = {
       index: llmStep.index,
       siliconDelta,
+      statusBefore,
       status: this.status,
       divergences,
     };
     this.comparisons.push(comparison);
     return comparison;
+  }
+
+  /** Reverse the most recent comparison (step-back), restoring silicon's state and status. */
+  undoLast(): Comparison | null {
+    const cmp = this.comparisons.pop();
+    if (!cmp) return null;
+    if (cmp.siliconDelta) undo(this.silicon, cmp.siliconDelta);
+    this.status = cmp.statusBefore;
+    if (this.firstDivergence === cmp.index) this.firstDivergence = null;
+    return cmp;
   }
 }

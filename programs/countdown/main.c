@@ -1,7 +1,9 @@
 #include "llmcpu.h"
 
 int main(void) {
-    for (int i = 5; i >= 1; i--) {
+    /* volatile keeps the compiler from unrolling the whole countdown */
+    volatile int start = 5;
+    for (int i = start; i >= 1; i--) {
         putc_((char)('0' + i));
         putc_(' ');
     }

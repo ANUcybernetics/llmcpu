@@ -5,58 +5,78 @@
     "file": "main.c"
   },
   {
+    "addr": 72,
+    "line": 5,
+    "file": "main.c"
+  },
+  {
+    "addr": 76,
+    "line": 8,
+    "file": "main.c"
+  },
+  {
     "addr": 100,
+    "line": 9,
+    "file": "main.c"
+  },
+  {
+    "addr": 104,
+    "line": 8,
+    "file": "main.c"
+  },
+  {
+    "addr": 164,
     "line": 44,
     "file": "llmcpu.h"
   },
   {
-    "addr": 104,
+    "addr": 168,
     "line": 20,
     "file": "llmcpu.h"
   },
   {
-    "addr": 116,
+    "addr": 180,
     "line": 36,
     "file": "llmcpu.h"
   },
   {
-    "addr": 124,
+    "addr": 188,
     "line": 37,
     "file": "llmcpu.h"
   },
   {
-    "addr": 136,
+    "addr": 200,
     "line": 39,
     "file": "llmcpu.h"
   },
   {
-    "addr": 152,
+    "addr": 216,
     "line": 40,
     "file": "llmcpu.h"
   },
   {
-    "addr": 156,
+    "addr": 220,
     "line": 41,
     "file": "llmcpu.h"
   },
   {
-    "addr": 160,
+    "addr": 224,
     "line": 39,
     "file": "llmcpu.h"
   },
   {
-    "addr": 164,
+    "addr": 228,
     "line": 43,
     "file": "llmcpu.h"
   },
   {
-    "addr": 188,
+    "addr": 252,
     "line": 20,
     "file": "llmcpu.h"
   },
   {
-    "addr": 192,
-    "line": 13,
+    "addr": 256,
+    "line": 15,
     "file": "main.c"
   }
 ]

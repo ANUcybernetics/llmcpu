@@ -1,0 +1,34 @@
+---
+import Machine from "../components/Machine.astro";
+import Base from "../layouts/Base.astro";
+---
+
+<Base
+  title="llmcpu"
+  description="A language model wired up as the control unit of a tiny computer, running real binaries and anything else you feed it, in your browser."
+>
+  <div class="intro">
+    <h1>A language model, pretending to be a CPU</h1>
+    <p>
+      The bytes of a real program sit in memory. A small language model, running on your graphics card, has to read them
+      four at a time, work out what each one means, and carry it out with a handful of tools. Beside it, an ordinary
+      silicon processor runs the same bytes so you can see where the model gets it wrong. Then feed it something that
+      was never a program at all, and watch it carry on anyway.
+    </p>
+  </div>
+  <Machine />
+</Base>
+
+<style>
+  .intro {
+    display: grid;
+    gap: var(--space-3);
+    max-width: var(--prose-width);
+    margin-block-end: var(--space-5);
+  }
+
+  .intro p {
+    font-size: var(--step1);
+    color: var(--muted);
+  }
+</style>

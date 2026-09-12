@@ -3,7 +3,7 @@
 // runs out of rounds). Every step records everything it saw and did so the UI
 // can show it and the lockstep comparator can judge it.
 
-import { type Delta, emptyDelta, type MachineState } from "../rv32i";
+import { type Delta, emptyDelta, type MachineState, undo } from "../rv32i";
 import type { Backend, ChatMessage } from "./backend";
 import { applyOp, type OpResult, STEP_JSON_SCHEMA, type StepOutput, StepOutputSchema } from "./ops";
 import {
@@ -148,6 +148,14 @@ export class LlmCpu {
       ms: now() - started,
     };
     this.steps.push(step);
+    return step;
+  }
+
+  /** Reverse the most recent instruction (step-back). Returns it, or null when there is none. */
+  undoLast(): LlmStep | null {
+    const step = this.steps.pop();
+    if (!step) return null;
+    undo(this.machine, step.delta);
     return step;
   }
 }

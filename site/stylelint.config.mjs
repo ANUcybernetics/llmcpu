@@ -7,5 +7,7 @@ export default {
     "no-descending-specificity": null,
     "custom-property-empty-line-before": null,
     "hue-degree-notation": null,
+    // would lowercase font-family names such as Menlo
+    "value-keyword-case": null,
   },
 };

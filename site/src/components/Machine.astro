@@ -1,0 +1,162 @@
+---
+import "../styles/machine.css";
+---
+
+<section id="machine" class="machine">
+  <div class="toolbar">
+    <label class="field">
+      <span>Program</span>
+      <select id="program">
+        <option id="custom-option" value="custom" hidden>Custom bytes</option>
+      </select>
+    </label>
+    <details id="feed" class="feed">
+      <summary>Feed it anything</summary>
+      <div class="feed-body">
+        <p class="muted">
+          The machine will run whatever you put in memory. Paste hex or plain text, drop any file onto this box, or ask
+          for random bytes. Silicon will stop at the first thing that is not an instruction; the model will not.
+        </p>
+        <div class="feed-row">
+          <textarea id="feed-text" rows="3" placeholder="13 05 30 00 … or any text" aria-label="Bytes to load"></textarea>
+          <div class="feed-controls">
+            <label><input type="radio" name="feed-kind" id="feed-hex" checked /> hex</label>
+            <label><input type="radio" name="feed-kind" id="feed-txt" /> text</label>
+            <button type="button" id="feed-load">Load these bytes</button>
+          </div>
+        </div>
+        <div class="feed-row">
+          <label class="field">
+            <span>A file</span>
+            <input type="file" id="feed-file" />
+          </label>
+          <label class="field">
+            <span>Random bytes</span>
+            <select id="feed-random-size">
+              <option value="64">64</option>
+              <option value="256" selected>256</option>
+              <option value="1024">1024</option>
+            </select>
+          </label>
+          <button type="button" id="feed-random">Load random bytes</button>
+        </div>
+      </div>
+    </details>
+    <label class="field">
+      <span>Model</span>
+      <select id="model">
+        <option value="oracle">Perfect oracle (no language model)</option>
+      </select>
+    </label>
+    <button type="button" id="load-model">Load model</button>
+    <progress id="model-progress" max="1" hidden></progress>
+    <details class="knobs">
+      <summary>Knobs</summary>
+      <div class="knob-grid">
+        <label class="field">
+          <span>Decode help</span>
+          <select id="knob-decode">
+            <option value="blind">none: raw bytes only</option>
+            <option value="manual" selected>the RV32I manual</option>
+            <option value="disasm">manual plus a disassembler</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>State shown each step</span>
+          <select id="knob-echo">
+            <option value="minimal">pc and its four bytes</option>
+            <option value="registers" selected>plus non-zero registers</option>
+            <option value="full">plus nearby memory and console</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Thinking before acting</span>
+          <select id="knob-thinking">
+            <option value="off" selected>none</option>
+            <option value="short">a few sentences</option>
+            <option value="long">a paragraph</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Instructions remembered</span>
+          <select id="knob-window">
+            <option value="0">none</option>
+            <option value="4">4</option>
+            <option value="8" selected>8</option>
+            <option value="24">24</option>
+          </select>
+        </label>
+      </div>
+      <p class="muted">Changes apply from the next instruction.</p>
+    </details>
+  </div>
+  <p id="model-note" class="note muted"></p>
+
+  <div class="panes">
+    <section id="source-pane" class="pane" aria-labelledby="source-h">
+      <h2 id="source-h">Source</h2>
+      <ol id="source" class="source mono"></ol>
+    </section>
+    <section class="pane" aria-labelledby="asm-h">
+      <h2 id="asm-h">Assembly <span class="muted">as silicon reads it</span></h2>
+      <ol id="asm" class="asm mono"></ol>
+    </section>
+    <section class="pane" aria-labelledby="mem-h">
+      <h2 id="mem-h">Memory <span id="image-label" class="muted"></span></h2>
+      <ol id="memory" class="memory mono"></ol>
+    </section>
+  </div>
+
+  <div class="controls">
+    <button type="button" id="step" disabled>Step</button>
+    <button type="button" id="run" disabled>Run</button>
+    <button type="button" id="back" disabled>Back</button>
+    <button type="button" id="reset">Reset</button>
+    <label class="field inline">
+      <span>Pause between instructions</span>
+      <select id="pause">
+        <option value="0" selected>none</option>
+        <option value="500">half a second</option>
+        <option value="1000">one second</option>
+        <option value="2000">two seconds</option>
+      </select>
+    </label>
+    <button type="button" id="format" aria-pressed="false">Show registers in decimal</button>
+    <span class="counter"><span id="step-count">0</span> instructions</span>
+    <span id="divergence" class="counter"></span>
+  </div>
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+
+  <p id="latest" class="latest"></p>
+
+  <div class="cpus">
+    <section class="cpu model" aria-labelledby="model-h">
+      <h2 id="model-h">The model</h2>
+      <p class="cpu-line mono">pc <span id="model-pc"></span> <span id="model-status" class="cpu-status"></span></p>
+      <div id="model-regs" class="regs mono"></div>
+      <output id="model-console" class="console mono" aria-label="Model console"></output>
+    </section>
+    <section class="cpu silicon" aria-labelledby="silicon-h">
+      <h2 id="silicon-h">Silicon</h2>
+      <p class="cpu-line mono">pc <span id="silicon-pc"></span> <span id="silicon-status" class="cpu-status"></span></p>
+      <div id="silicon-regs" class="regs mono"></div>
+      <output id="silicon-console" class="console mono" aria-label="Silicon console"></output>
+      <p id="silicon-expected" class="muted expected"></p>
+    </section>
+  </div>
+
+  <section class="trace-section" aria-labelledby="trace-h">
+    <h2 id="trace-h">Trace</h2>
+    <p class="muted">
+      One row per instruction: how silicon reads the bytes, what the model said it was doing, and whether the two
+      machines still agree.
+    </p>
+    <ol id="trace" class="trace"></ol>
+  </section>
+</section>
+
+<script>
+  import { main } from "../app/main";
+
+  void main();
+</script>

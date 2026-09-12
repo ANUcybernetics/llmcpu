@@ -9,11 +9,11 @@ Disassembly of section .text:
 
 00000008 <.Lpcrel_hi1>:
        8:      	auipc	a0, 0
-       c:      	addi	a0, a0, 208
+       c:      	addi	a0, a0, 276
 
 00000010 <.Lpcrel_hi2>:
       10:      	auipc	a1, 0
-      14:      	addi	a1, a1, 200
+      14:      	addi	a1, a1, 268
       18:      	bge	a0, a1, 0x28 <.Lline_table_start0+0x28>
       1c:      	sw	zero, 0(a0)
       20:      	addi	a0, a0, 4
@@ -26,37 +26,54 @@ Disassembly of section .text:
       3c:      	jal	zero, 0x3c <.Lline_table_start0+0x3c>
 
 00000040 <main>:
-      40:      	addi	a0, zero, 0
-      44:      	addi	a6, zero, 0
-      48:      	addi	a1, zero, 55
-      4c:      	lui	a2, 0
-      50:      	addi	a2, a2, 200
-      54:      	addi	a3, zero, 3
-      58:      	lui	a4, 4
-      5c:      	addi	a5, zero, 4
-      60:      	jal	zero, 0x7c <.Lline_table_start0+0x7c>
-      64:      	addi	a6, a7, 48
-      68:      	andi	a6, a6, 255
-      6c:      	sw	a6, 0(a4)
-      70:      	addi	a6, zero, 1
-      74:      	addi	a0, a0, 1
-      78:      	beq	a0, a5, 0xb4 <.Lline_table_start0+0xb4>
-      7c:      	slli	a7, a0, 2
-      80:      	add	a7, a2, a7
-      84:      	lw	t0, 0(a7)
-      88:      	bgeu	a1, t0, 0x94 <.Lline_table_start0+0x94>
-      8c:      	addi	a7, zero, 0
-      90:      	jal	zero, 0xa4 <.Lline_table_start0+0xa4>
-      94:      	addi	a7, zero, 0
-      98:      	sub	a1, a1, t0
-      9c:      	addi	a7, a7, 1
-      a0:      	bgeu	a1, t0, 0x98 <.Lline_table_start0+0x98>
-      a4:      	beq	a0, a3, 0x64 <.Lline_table_start0+0x64>
-      a8:      	or	a6, a7, a6
-      ac:      	beq	a6, zero, 0x74 <.Lline_table_start0+0x74>
-      b0:      	jal	zero, 0x64 <.Lline_table_start0+0x64>
-      b4:      	lui	a0, 4
-      b8:      	addi	a1, zero, 10
-      bc:      	sw	a1, 0(a0)
-      c0:      	addi	a0, zero, 0
-      c4:      	jalr	zero, 0(ra)
+      40:      	addi	sp, sp, -16
+      44:      	addi	a0, zero, 10
+      48:      	sw	a0, 12(sp)
+      4c:      	lw	a0, 12(sp)
+      50:      	bge	zero, a0, 0x80 <.Lline_table_start0+0x80>
+      54:      	addi	a2, zero, 0
+      58:      	addi	a1, zero, 0
+      5c:      	addi	a3, zero, 1
+      60:      	lw	a4, 12(sp)
+      64:      	add	a5, a2, a3
+      68:      	addi	a1, a1, 1
+      6c:      	addi	a0, a3, 0
+      70:      	addi	a2, a3, 0
+      74:      	addi	a3, a5, 0
+      78:      	blt	a1, a4, 0x60 <.Lline_table_start0+0x60>
+      7c:      	jal	zero, 0x84 <.Lline_table_start0+0x84>
+      80:      	addi	a0, zero, 0
+      84:      	addi	a1, zero, 0
+      88:      	addi	a6, zero, 0
+      8c:      	lui	a2, 0
+      90:      	addi	a2, a2, 268
+      94:      	addi	a3, zero, 3
+      98:      	lui	a4, 4
+      9c:      	addi	a5, zero, 4
+      a0:      	jal	zero, 0xbc <.Lline_table_start0+0xbc>
+      a4:      	addi	a6, a7, 48
+      a8:      	andi	a6, a6, 255
+      ac:      	sw	a6, 0(a4)
+      b0:      	addi	a6, zero, 1
+      b4:      	addi	a1, a1, 1
+      b8:      	beq	a1, a5, 0xf4 <.Lline_table_start0+0xf4>
+      bc:      	slli	a7, a1, 2
+      c0:      	add	a7, a2, a7
+      c4:      	lw	t0, 0(a7)
+      c8:      	bgeu	a0, t0, 0xd4 <.Lline_table_start0+0xd4>
+      cc:      	addi	a7, zero, 0
+      d0:      	jal	zero, 0xe4 <.Lline_table_start0+0xe4>
+      d4:      	addi	a7, zero, 0
+      d8:      	sub	a0, a0, t0
+      dc:      	addi	a7, a7, 1
+      e0:      	bgeu	a0, t0, 0xd8 <.Lline_table_start0+0xd8>
+      e4:      	beq	a1, a3, 0xa4 <.Lline_table_start0+0xa4>
+      e8:      	or	a6, a7, a6
+      ec:      	beq	a6, zero, 0xb4 <.Lline_table_start0+0xb4>
+      f0:      	jal	zero, 0xa4 <.Lline_table_start0+0xa4>
+      f4:      	lui	a0, 4
+      f8:      	addi	a1, zero, 10
+      fc:      	sw	a1, 0(a0)
+     100:      	addi	a0, zero, 0
+     104:      	addi	sp, sp, 16
+     108:      	jalr	zero, 0(ra)

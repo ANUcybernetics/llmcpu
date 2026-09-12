@@ -9,11 +9,11 @@ Disassembly of section .text:
 
 00000008 <.Lpcrel_hi1>:
        8:      	auipc	a0, 0
-       c:      	addi	a0, a0, 156
+       c:      	addi	a0, a0, 184
 
 00000010 <.Lpcrel_hi2>:
       10:      	auipc	a1, 0
-      14:      	addi	a1, a1, 148
+      14:      	addi	a1, a1, 176
       18:      	bge	a0, a1, 0x28 <.Lline_table_start0+0x28>
       1c:      	sw	zero, 0(a0)
       20:      	addi	a0, a0, 4
@@ -26,25 +26,32 @@ Disassembly of section .text:
       3c:      	jal	zero, 0x3c <.Lline_table_start0+0x3c>
 
 00000040 <main>:
-      40:      	addi	a2, zero, 53
-      44:      	lui	a0, 4
-      48:      	addi	a1, zero, 32
-      4c:      	addi	a3, zero, 1
-      50:      	sw	a2, 0(a0)
-      54:      	addi	a4, a2, -48
-      58:      	addi	a2, a2, -1
-      5c:      	sw	a1, 0(a0)
-      60:      	bltu	a3, a4, 0x50 <.Lline_table_start0+0x50>
-      64:      	lui	a0, 0
-      68:      	addi	a2, a0, 152
-      6c:      	addi	a0, a2, 1
-      70:      	addi	a3, zero, 108
-      74:      	lui	a1, 4
-      78:      	addi	a2, a2, 9
-      7c:      	andi	a3, a3, 255
-      80:      	sw	a3, 0(a1)
-      84:      	lbu	a3, 0(a0)
-      88:      	addi	a0, a0, 1
-      8c:      	bne	a0, a2, 0x7c <.Lline_table_start0+0x7c>
-      90:      	addi	a0, zero, 0
-      94:      	jalr	zero, 0(ra)
+      40:      	addi	sp, sp, -16
+      44:      	addi	a0, zero, 5
+      48:      	sw	a0, 12(sp)
+      4c:      	lw	a0, 12(sp)
+      50:      	bge	zero, a0, 0x7c <.Lline_table_start0+0x7c>
+      54:      	addi	a2, a0, 48
+      58:      	lui	a0, 4
+      5c:      	addi	a1, zero, 32
+      60:      	addi	a3, zero, 1
+      64:      	andi	a4, a2, 255
+      68:      	sw	a4, 0(a0)
+      6c:      	addi	a4, a2, -48
+      70:      	addi	a2, a2, -1
+      74:      	sw	a1, 0(a0)
+      78:      	blt	a3, a4, 0x64 <.Lline_table_start0+0x64>
+      7c:      	lui	a0, 0
+      80:      	addi	a2, a0, 180
+      84:      	addi	a0, a2, 1
+      88:      	addi	a3, zero, 108
+      8c:      	lui	a1, 4
+      90:      	addi	a2, a2, 9
+      94:      	andi	a3, a3, 255
+      98:      	sw	a3, 0(a1)
+      9c:      	lbu	a3, 0(a0)
+      a0:      	addi	a0, a0, 1
+      a4:      	bne	a0, a2, 0x94 <.Lline_table_start0+0x94>
+      a8:      	addi	a0, zero, 0
+      ac:      	addi	sp, sp, 16
+      b0:      	jalr	zero, 0(ra)

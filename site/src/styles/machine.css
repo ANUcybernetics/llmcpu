@@ -1,0 +1,578 @@
+/* The machine page. Panes are graph paper; the two tracks keep their colours
+   everywhere: violet for the model, teal for silicon, orange for disagreement. */
+
+@layer components {
+  .machine {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--space-3) var(--space-4);
+  }
+
+  .field {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    font-size: var(--step-1);
+  }
+
+  .field select,
+  .field input[type="file"] {
+    inline-size: 100%;
+    max-inline-size: 100%;
+  }
+
+  .field.inline {
+    grid-auto-flow: column;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .field > span {
+    color: var(--muted);
+  }
+
+  .note:empty {
+    display: none;
+  }
+
+  progress {
+    inline-size: 12rem;
+    accent-color: var(--model);
+  }
+
+  details > summary {
+    cursor: pointer;
+    min-block-size: 2rem;
+    display: inline-flex;
+    align-items: center;
+    padding-inline: var(--space-3);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--paper);
+  }
+
+  details[open] > summary {
+    border-color: var(--ink);
+  }
+
+  .feed,
+  .knobs {
+    flex-basis: 100%;
+  }
+
+  .feed-body,
+  .knob-grid {
+    margin-block-start: var(--space-3);
+    padding: var(--space-4);
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+    background: var(--paper);
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .feed.dragging .feed-body {
+    border-color: var(--model);
+    background: var(--model-soft);
+  }
+
+  .feed-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--space-3);
+  }
+
+  .feed-row textarea {
+    flex: 1 1 20rem;
+    font-family: var(--font-mono);
+    font-size: var(--step-1);
+    padding: var(--space-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--ground);
+    color: inherit;
+  }
+
+  .feed-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+  }
+
+  .knob-grid {
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  }
+
+  .knobs > p {
+    margin-block-start: var(--space-2);
+    font-size: var(--step-1);
+  }
+
+  /* Godbolt panes */
+
+  .panes {
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  }
+
+  .pane {
+    min-inline-size: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background:
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 1.5rem,
+      var(--paper);
+  }
+
+  .pane h2,
+  .cpu h2,
+  .trace-section h2 {
+    font-size: var(--step0);
+    font-weight: 600;
+  }
+
+  .pane h2 {
+    padding: var(--space-2) var(--space-3);
+    border-block-end: 1px solid var(--line);
+    background: var(--paper);
+  }
+
+  .pane h2 .muted {
+    font-weight: 400;
+    font-size: var(--step-1);
+  }
+
+  .pane ol {
+    list-style: none;
+    padding: var(--space-2) 0;
+    max-block-size: 24rem;
+    overflow: auto;
+    font-size: var(--step-1);
+    line-height: 1.5rem;
+    white-space: pre;
+  }
+
+  .pane li {
+    padding-inline: var(--space-3);
+  }
+
+  .source {
+    counter-reset: line;
+  }
+
+  .source li::before {
+    counter-increment: line;
+    content: counter(line);
+    display: inline-block;
+    inline-size: 2.5ch;
+    margin-inline-end: 1.5ch;
+    text-align: end;
+    color: var(--muted);
+  }
+
+  .asm li,
+  .memory li {
+    display: grid;
+    grid-template-columns: 1ch 5ch 12ch 1fr;
+    gap: 1.5ch;
+  }
+
+  .memory li {
+    grid-template-columns: 5ch 1fr 8ch;
+  }
+
+  .asm .addr,
+  .memory .addr {
+    color: var(--muted);
+  }
+
+  .asm .bytes {
+    color: var(--muted);
+  }
+
+  .asm .invalid .text,
+  .trace .reading.invalid {
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .memory .bytes {
+    display: flex;
+    gap: 0.5ch;
+  }
+
+  .memory .ascii {
+    color: var(--muted);
+  }
+
+  .memory .gap {
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* line bands shared by source, assembly, memory and trace */
+
+  [data-line] {
+    --band: color-mix(in oklch, oklch(72% 0.14 var(--hue)) 22%, transparent);
+
+    background: var(--band);
+  }
+
+  .memory .byte[data-line] {
+    border-radius: 2px;
+    padding-inline: 1px;
+    margin-inline: -1px;
+  }
+
+  [data-line].linked {
+    --band: color-mix(in oklch, oklch(72% 0.16 var(--hue)) 55%, transparent);
+
+    outline: 1px solid color-mix(in oklch, oklch(50% 0.16 var(--hue)) 80%, transparent);
+    outline-offset: -1px;
+  }
+
+  /* pc markers */
+
+  .asm .marker::before {
+    content: "";
+  }
+
+  .asm li.pc-model .marker::before {
+    content: "▶";
+    color: var(--model);
+  }
+
+  .asm li.pc-silicon .marker::after {
+    content: "▷";
+    color: var(--silicon);
+    margin-inline-start: -1ch;
+  }
+
+  .asm li.pc-model,
+  .asm li.pc-silicon {
+    font-weight: 600;
+  }
+
+  .memory .byte.pc-model {
+    box-shadow: inset 0 -2px 0 var(--model);
+  }
+
+  .memory .byte.pc-silicon {
+    box-shadow: inset 0 2px 0 var(--silicon);
+  }
+
+  .memory .byte.pc-model.pc-silicon {
+    box-shadow:
+      inset 0 -2px 0 var(--model),
+      inset 0 2px 0 var(--silicon);
+  }
+
+  .memory .byte.changed,
+  .reg.changed {
+    animation: flash 1.2s ease-out;
+  }
+
+  @keyframes flash {
+    from {
+      background-color: var(--model-soft);
+      box-shadow: 0 0 0 2px var(--model);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .memory .byte.changed,
+    .reg.changed {
+      animation: none;
+      box-shadow: 0 0 0 2px var(--model);
+    }
+  }
+
+  /* controls */
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .controls #step,
+  .controls #run {
+    font-weight: 600;
+    border-color: var(--model);
+    color: var(--model);
+  }
+
+  .controls #step:disabled,
+  .controls #run:disabled {
+    border-color: var(--line);
+    color: var(--muted);
+  }
+
+  .counter {
+    font-size: var(--step-1);
+    color: var(--muted);
+  }
+
+  .status {
+    min-block-size: 1.5lh;
+    font-size: var(--step-1);
+    color: var(--muted);
+  }
+
+  .latest {
+    font-size: var(--step2);
+    font-weight: 500;
+    line-height: 1.3;
+    max-width: 48rem;
+    padding-inline-start: var(--space-4);
+    border-inline-start: 4px solid var(--model);
+    text-wrap: pretty;
+  }
+
+  /* the two machines */
+
+  .cpus {
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  }
+
+  .cpu {
+    display: grid;
+    gap: var(--space-3);
+    align-content: start;
+    padding: var(--space-3);
+    border: 1px solid var(--line);
+    border-block-start: 4px solid var(--track);
+    border-radius: var(--radius);
+    background: var(--paper);
+  }
+
+  .cpu.model {
+    --track: var(--model);
+    --track-soft: var(--model-soft);
+  }
+
+  .cpu.silicon {
+    --track: var(--silicon);
+    --track-soft: var(--silicon-soft);
+  }
+
+  .cpu h2 {
+    color: var(--track);
+  }
+
+  .cpu-line {
+    font-size: var(--step-1);
+  }
+
+  .cpu-status.stopped {
+    color: var(--diverge);
+  }
+
+  .regs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    font-size: var(--step-1);
+  }
+
+  .reg {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5ch;
+    padding: 1px var(--space-2);
+    background: var(--paper);
+    white-space: nowrap;
+  }
+
+  .reg .name {
+    color: var(--muted);
+  }
+
+  .reg.zero .val {
+    color: var(--muted);
+  }
+
+  .console {
+    display: block;
+    min-block-size: 3lh;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius);
+    background: var(--ink);
+    color: var(--ground);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .console:empty::before {
+    content: "(nothing printed yet)";
+    opacity: 0.5;
+  }
+
+  .expected {
+    font-size: var(--step-1);
+  }
+
+  /* the trace */
+
+  .trace-section {
+    display: grid;
+    gap: var(--space-2);
+    container-type: inline-size;
+  }
+
+  .trace {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: 1px;
+    border: 1px solid var(--line);
+    background: var(--line);
+    max-block-size: 40rem;
+    overflow: auto;
+  }
+
+  .trace:empty {
+    border-style: dashed;
+    background: transparent;
+    min-block-size: 4rem;
+  }
+
+  .trace > li {
+    display: grid;
+    grid-template-columns: 3ch 6ch minmax(12ch, 18ch) 1fr;
+    grid-template-areas:
+      "idx pc reading comment"
+      ". . verdict verdict"
+      ". . detail detail";
+    gap: var(--space-1) var(--space-3);
+    align-items: baseline;
+    padding: var(--space-2) var(--space-3);
+    background: var(--paper);
+    font-size: var(--step-1);
+  }
+
+  .trace > li::before {
+    display: none;
+  }
+
+  .trace .idx {
+    grid-area: idx;
+    color: var(--muted);
+    text-align: end;
+  }
+
+  .trace .pc,
+  .trace .reading {
+    font-family: var(--font-mono);
+  }
+
+  .trace .pc {
+    grid-area: pc;
+    color: var(--muted);
+  }
+
+  .trace .reading {
+    grid-area: reading;
+    color: var(--silicon);
+  }
+
+  .trace .comment {
+    grid-area: comment;
+    color: var(--model);
+    font-size: var(--step0);
+  }
+
+  .trace .verdict {
+    grid-area: verdict;
+    color: var(--muted);
+  }
+
+  .trace .diverged {
+    background: var(--diverge-soft);
+  }
+
+  .trace .diverged .verdict {
+    color: var(--diverge);
+    font-weight: 600;
+  }
+
+  .trace .silicon-off .reading,
+  .trace .silicon-off .verdict {
+    color: var(--muted);
+  }
+
+  .trace .detail {
+    grid-area: detail;
+  }
+
+  .trace .detail > summary {
+    border: 0;
+    padding: 0;
+    min-block-size: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: var(--step-1);
+  }
+
+  .rounds {
+    margin-block-start: var(--space-2);
+    padding-inline-start: var(--space-4);
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .rounds .ops {
+    list-style: none;
+    padding: 0;
+    margin-block-start: var(--space-1);
+    display: grid;
+    gap: 2px;
+    overflow-wrap: anywhere;
+  }
+
+  .rounds code {
+    font-size: 0.85em;
+  }
+
+  .rounds .reasoning {
+    margin-block-start: var(--space-1);
+    white-space: pre-wrap;
+  }
+
+  .rounds pre {
+    overflow: auto;
+    font-size: 0.85em;
+  }
+
+  .err {
+    color: var(--diverge);
+  }
+
+  @container (max-width: 40rem) {
+    .trace > li {
+      grid-template-columns: 3ch 1fr;
+      grid-template-areas:
+        "idx pc"
+        ". reading"
+        ". comment"
+        ". verdict"
+        ". detail";
+    }
+  }
+}
