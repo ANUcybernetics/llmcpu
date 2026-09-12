@@ -1,12 +1,14 @@
 # llmcpu
 
 A computer whose CPU is a language model, in the browser. The default framing is
-growth, not deficit: any bytes are a program, the model decides what an
-instruction is, and the trace reports what it read, printed and wrote. RISC-V
-programs and the silicon comparison are one input and one option among others;
-keep copy, defaults and layout pointed that way. `README.md` has the layout, the
-check commands for both halves and the real-model test recipe; run commands with
-`mise exec --`.
+growth, not deficit: any bytes are a program, the model designs the language
+they are in before running them (step zero), and the trace reports what it read,
+printed, drew and wrote, where it rewrote itself and where it broke its own
+rules. The interesting behaviour is the model going off the rails and ploughing
+on, not echo; keep copy, defaults and layout pointed that way. RISC-V programs
+and the silicon comparison are one input and one option among others.
+`README.md` has the layout, the check commands for both halves and the
+real-model and recording recipes; run commands with `mise exec --`.
 
 ## Constraints
 
@@ -35,5 +37,12 @@ check commands for both halves and the real-model test recipe; run commands with
 - The mock backend is the only model in tests and CI. Prompt or op changes need
   a green suite before a real model is tried, and a real-model check before they
   ship (see README).
+- Recordings under `site/src/data/recordings` are real runs captured with
+  `scripts/record-run.sh`, never edited or synthesised, and the page must always
+  say when it is replaying one. Only their `meta` is bundled; keep
+  `RecordingMeta` and the replay compatible with the files already shipped, or
+  re-record them.
+- `LlmStep`, `Delta` and `DesignStep` are the recording format. A change to
+  their shape is a change to every shipped recording.
 - WebLLM is a 6 MB chunk loaded by dynamic import only when a real model is
   chosen. Keep it out of the initial bundle.

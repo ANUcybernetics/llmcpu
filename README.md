@@ -73,19 +73,44 @@ or prompt change.
 
 ## How a step works
 
-1. The prompt carries the machine state (how much is a knob), the model's own
-   recent trace, and its scratchpad note. The reading knob decides what it is
-   told about instructions: nothing (the default), or RISC-V with raw words, a
-   manual, or each instruction decoded for it.
-2. The model replies with JSON, constrained to a schema: a one-sentence comment
+1. Step zero, in the free reading: the model is shown the first 64 bytes of
+   memory and designs the language they are in (a JSON-constrained reply: name,
+   what an instruction is, what its pieces mean, what registers and memory are
+   for, what gets printed or drawn). The design is echoed to it on every step
+   and shown on the page; a `revise` op changes one part of it out loud.
+2. The prompt carries the machine state (how much is a knob), 64 bytes from pc
+   in the free reading, the model's own recent trace, its language and its
+   scratchpad note. The reading knob decides what it is told about instructions:
+   nothing (the default), or RISC-V with raw words, a manual, or each
+   instruction decoded for it.
+3. The model replies with JSON, constrained to a schema: a one-sentence comment
    and a list of ops.
-3. Ops are applied in order. Ops that return information (`peek`, `load`,
+4. Ops are applied in order. Ops that return information (`peek`, `load`,
    `get_reg`, `alu`, `disasm`) pause the list and the model is asked again with
    the results. `set_pc` commits the instruction.
-4. In the free reading the runner insists on two things: an instruction must do
+5. In the free reading the runner insists on two things: an instruction must do
    something besides moving pc, and pc must move. The trace reports what was
-   read, printed and written. With a RISC-V program and the silicon comparison
-   on, silicon executes one instruction per model step and the two machines are
-   compared register by register, byte by byte.
+   read, printed, drawn and written, flags an instruction whose bytes were read
+   before with a different effect, and counts the bytes of the program the model
+   has rewritten. With a RISC-V program and the silicon comparison on, silicon
+   executes one instruction per model step and the two machines are compared
+   register by register, byte by byte, pixel by pixel.
+
+## Recordings
+
+`site/src/data/recordings/*.json` are complete traces of real runs (image,
+knobs, design step, every step with its rounds and delta, who ran it where and
+when), replayed through the same page with no model loaded. They are never
+edited. To make one, build and preview the site, open the GPU-enabled browser
+session as above, then:
+
+```sh
+scripts/record-run.sh Qwen3.5-9B dickinson 40 site/src/data/recordings/poem-9b.json \
+  poem-9b "The poem, read by Qwen3.5 9B" "NVIDIA RTX 6000 Ada (48 GB), weddle" "what happened, in a sentence"
+```
+
+The script runs up to that many instructions (or to a halt), then saves what the
+page's `window.llmcpu.record()` returns. Add `notes` afterwards by editing
+`meta.notes` only.
 
 Deploys to GitHub Pages from `main` via `.github/workflows/pages.yml`.

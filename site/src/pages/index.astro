@@ -10,11 +10,14 @@ import Base from "../layouts/Base.astro";
   <div class="intro">
     <h1>A computer whose CPU is a language model</h1>
     <p>
-      Give it anything: a poem, a photograph, random noise, or a real program. A small language model, running on your
-      graphics card, reads the bytes a few at a time, decides what each instruction means, and carries it out on a
-      little machine with memory, registers and a console. There is no wrong reading. Watch what it makes of them, and
-      what the program turns out to do. If you hand it a real RISC-V program you can also run a silicon processor
-      alongside and see where the two part ways.
+      Give it anything: a poem, a photograph, a tune, a font, a program for some other machine, or noise. Before it
+      runs a byte, a small language model writes down the language it thinks the bytes are in: what an instruction is,
+      where one ends, what the pieces mean. Then it reads them in that language, a chunk at a time, on a little machine
+      with memory, registers, a console and a 32 by 32 pixel display. There is no wrong reading, only the one it
+      committed to. Watch it hold to that language, revise it out loud, or quietly drift; watch a program rewrite
+      itself as it is read; watch what a poem draws. The recordings replay real runs on any laptop, and with a GPU you
+      can run a model yourself. Hand it a real RISC-V program and a silicon processor can run alongside, to show
+      where the two part ways.
     </p>
   </div>
   <Machine />

@@ -7,35 +7,78 @@ import Base from "../layouts/Base.astro";
     <h1>About</h1>
     <p>
       A processor is a machine that fetches a few bytes, decides what they mean, does that, and moves on. This site
-      replaces the part that decides with a language model. Everything else, memory, registers, the program counter, the
-      console, is ordinary and exact. The model is handed the bytes at the program counter and a small set of tools:
-      read memory, write memory, read a register, write a register, do one piece of 32-bit arithmetic, and move the
-      program counter. Moving the program counter is what finishes an instruction.
+      replaces the part that decides with a language model. Everything else, memory, registers, the program counter,
+      the console, the display, is ordinary and exact. The model is handed the bytes at the program counter and a small
+      set of tools: read memory, write memory, read a register, write a register, do one piece of 32-bit arithmetic,
+      print, light a pixel, and move the program counter. Moving the program counter is what finishes an instruction.
     </p>
     <p>
-      A silicon processor has one fixed idea of what bytes mean, and stops dead at the first word that does not fit it.
-      The model has no such idea unless you give it one. By default it is told only that the bytes are a program in a
-      language it alone knows: read as many as make an instruction, decide what it means, act, be consistent. So a poem
-      is a program. So is a photograph, or noise. The question the site asks is not whether the model gets it right,
-      because there is no right, but what it makes of what it is given: how it chunks the bytes, what it decides they
-      do, and what the program turns out to print.
+      A silicon processor has one fixed idea of what bytes mean, and stops dead at the first word that does not fit
+      it. The model has no such idea unless you give it one. By default it is told only that the bytes are a program in
+      a language it alone knows. So a poem is a program. So is a photograph, or a font, or noise. The question the site
+      asks is not whether the model gets it right, because there is no right, but what it makes of what it is given,
+      and how it fails: not by halting, but by ploughing on, one token at a time, into readings nobody designed.
     </p>
+
+    <h2>Step zero: the language</h2>
     <p>
-      Real RISC-V programs are in the gallery too, as one kind of input among the others. For those you can ask for a
-      second, silicon processor to run the same bytes alongside, and see exactly where the model's reading parts from
-      the official one. That comparison is a good way to learn what a processor actually does, but it is the second
-      act, not the point.
+      Before anything runs, the model is shown the first 64 bytes of memory, as hex and as text, and asked to design
+      the language they are written in: how many bytes make an instruction or what marks where one ends, how the
+      pieces of an instruction decide what it does, what the registers and memory are for, and what the program prints
+      or draws. That design is shown back to it on every instruction and rendered on the page as its own pane. It is
+      held to it in two ways. The model can change its mind, but only with a <code>revise</code> op that rewrites one
+      part of the design out loud, and every revision shows in the trace. And the machine checks the one rule the
+      free reading has, that the same bytes mean the same thing: an instruction whose bytes were read before with a
+      different effect is flagged. Whether it reads whole lines, words, four-byte words or single bytes is its call;
+      the echo shows 64 bytes so the chunk is not an artefact of what it was shown.
+    </p>
+
+    <h2>What to watch for</h2>
+    <ul>
+      <li>
+        <strong>Echo</strong> is the easy reading of text: an instruction is a line, its meaning is to print itself. The
+        larger models settle into it quickly. It is the least interesting thing a model can do here, and the site is
+        arranged so that it is not the only thing you see.
+      </li>
+      <li>
+        <strong>Self-modification.</strong> When the model stores into the bytes it is reading, the program is
+        rewriting itself as it runs. The count of rewritten bytes is a headline measure, the bytes are marked in the
+        text and memory panes, and a diff against the original image is a click away. A small model once overwrote a
+        poem with a bytecode of its own invention.
+      </li>
+      <li>
+        <strong>The display.</strong> Printing lets a model echo; a picture does not. What does a poem draw? What does
+        a JPEG draw when it is read as instructions rather than decoded?
+      </li>
+      <li>
+        <strong>Drift.</strong> A language designed for the first 64 bytes meets bytes it did not anticipate. Does the
+        model revise, or read differently without saying so, or wander into the console page and print it?
+      </li>
+    </ul>
+
+    <h2>Recordings</h2>
+    <p>
+      A run of a real model takes seconds per instruction and a GPU with a few gigabytes of memory, which most laptops
+      do not have. So the model dropdown starts with recordings: complete traces of real runs, with the model's design
+      step, every round of every instruction, its comments and its tool calls, replayed through the same interface at
+      your pace. Nothing in a recording is edited or synthesised, and every recording is labelled with the model, the
+      knobs, the date and the hardware. A banner over the machine says when you are watching one. The live models are
+      the bonus for those with the hardware.
     </p>
 
     <h2>The machine</h2>
     <p>
       It is a 32-bit RISC-V machine with the base integer instruction set only (RV32I, about forty instructions) and
-      16 KiB of memory. Storing a word to address <code>0x4000</code> prints its low byte; storing to
-      <code>0x4100</code> halts. The curated programs are small C programs compiled with clang for exactly this
-      machine, with no standard library; their sources, binaries and line tables are in the
+      16 KiB of memory. Three devices are mapped above memory: a console page at <code>0x4000</code>, where a store
+      prints the bytes stored; a halt port at <code>0x4100</code>; and a 32 by 32 pixel display at
+      <code>0x5000</code>, one byte per pixel, the low four bits picking one of sixteen colours. The curated programs
+      are small C programs compiled with clang for exactly this machine, with no standard library; their sources,
+      binaries and line tables are in the
       <a href="https://github.com/ANUcybernetics/llmcpu/tree/main/programs">programs directory</a>. The colours running
       through the source, assembly, memory and trace panes follow the compiler's own line table, the same trick
-      <a href="https://godbolt.org">Compiler Explorer</a> uses to show which line became which instructions.
+      <a href="https://godbolt.org">Compiler Explorer</a> uses to show which line became which instructions. For a
+      RISC-V program you can ask for a second, silicon processor to run the same bytes alongside and see exactly where
+      the model's reading parts from the official one.
     </p>
 
     <h2>The model</h2>
@@ -48,45 +91,56 @@ import Base from "../layouts/Base.astro";
       the trace.
     </p>
     <p>
-      The perfect oracle in the same dropdown is not a language model. It is a silicon RISC-V processor answering in the
-      model's place: it reads RISC-V and nothing else, so on a poem it shrugs and steps over every four bytes. It exists
-      so that the machinery can be seen working on a device without WebGPU.
+      The perfect oracle in the same dropdown is not a language model. It is a silicon RISC-V processor answering in
+      the model's place: it reads RISC-V and nothing else, so on a poem it shrugs and steps over every four bytes, and
+      its language design is always the RISC-V manual. It exists so that the machinery can be seen working on a device
+      without WebGPU.
     </p>
 
     <h2>The knobs</h2>
     <ul>
       <li>
         <strong>How to read the bytes</strong> is the main one. The default tells the model nothing about what an
-        instruction is: it chooses how many bytes to take and what they mean. The other three settings tell it the bytes
-        are RISC-V, with increasing help: raw words only, a compact manual, or the manual plus each instruction already
-        decoded for it. They form a ladder from invention to execution.
+        instruction is: it designs a language and reads in it. The other three settings tell it the bytes are RISC-V,
+        with increasing help: raw words only, a compact manual, or the manual plus each instruction already decoded
+        for it. They form a ladder from invention to execution.
       </li>
       <li>
         <strong>State shown each step</strong> sets how much of the machine the model sees without asking: just the
-        program counter and its four bytes, or the non-zero registers too, or nearby memory and the console as well. The
-        rest it has to fetch with tools.
+        program counter and the bytes ahead of it, or the non-zero registers too, or nearby memory and the console as
+        well. The rest it has to fetch with tools.
       </li>
       <li>
         <strong>Thinking before acting</strong> gives the model a scratchpad of a few sentences or a paragraph before it
         commits to its tool calls.
       </li>
       <li>
-        <strong>Instructions remembered</strong> is how many of its own recent steps the model is reminded of. It is the
-        model's only memory of what happened before; the machine's state is the rest.
+        <strong>Instructions remembered</strong> is how many of its own recent steps the model is reminded of. Together
+        with its language design and its note, it is the model's only memory of what happened before; the machine's
+        state is the rest.
       </li>
     </ul>
 
     <h2>Prior art</h2>
     <p>
       In 2023 Brad Grantham had GPT-4 <a href="https://bradgrantham.github.io/gpt-4-6502/">single-step a 6502 FizzBuzz</a>,
-      one instruction per prompt with a line of reasoning before each state update; it got 286 of 288 steps right. The
-      idea of a learned system standing in for a deterministic one has since shown up at other layers: diffusion models
-      that <a href="https://arxiv.org/abs/2408.14837">render a game engine</a>, a model that
-      <a href="https://arxiv.org/abs/2507.08800">predicts an operating system's screen</a>, and benchmarks measuring how
-      well language models
-      <a href="https://arxiv.org/abs/2511.14777">execute a state machine over long horizons</a> (badly, unless the state
-      is externalised at every step, which is what the tools here do). What we have not seen is a control unit asked to read bytes
-      that were never a program as though they were one, with the reading laid out beside the bytes.
+      one instruction per prompt with a line of reasoning before each state update; it got 286 of 288 steps right.
+      Jonas Degrave's <a href="https://www.engraved.blog/building-a-virtual-machine-inside/">virtual machine inside
+      ChatGPT</a> (2022) is the famous case of a model sustaining a convincing computer by narration alone, and the
+      <a href="https://www.lesswrong.com/posts/vJFdjigzmcXMhNTsx/simulators">simulators</a> framing from the same year
+      is the vocabulary for why a model will play out whatever process it is conditioned on, halting or not.
+      Formally, prompting can make a transformer
+      <a href="https://arxiv.org/abs/2303.14310">execute loops step by step</a> and is even
+      <a href="https://arxiv.org/abs/2411.01992">Turing complete</a> given a scratchpad; empirically, benchmarks find
+      that models <a href="https://arxiv.org/abs/2511.14777">execute state machines over long horizons</a> badly
+      unless the state is externalised at every step, which is what the tools here do. The nearest thing to a model
+      reading raw bytes as a machine is <a href="https://arxiv.org/abs/2402.19155">bGPT</a>, a byte-level model trained
+      to simulate a CPU from its binary; the difference here is that a general chat model was never trained for any of
+      this, and is asked to read bytes that were never a program at all. That last move has its own lineage in
+      <a href="https://en.wikipedia.org/wiki/Databending">databending</a>, where a file is opened in software meant for
+      another kind, and in <a href="https://esolangs.org/wiki/Piet">Piet</a>, where the program is a picture. The
+      memory-mapped display and the register pane owe their shape to
+      <a href="https://en.wikipedia.org/wiki/CHIP-8">CHIP-8</a> and the tradition of tiny teaching machines.
     </p>
 
     <h2>Who</h2>
