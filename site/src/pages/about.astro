@@ -24,8 +24,10 @@ import Base from "../layouts/Base.astro";
     <p>
       Before anything runs, the model is shown the first 64 bytes of memory, as hex and as text, and asked to design
       the language they are written in: how many bytes make an instruction or what marks where one ends, how the
-      pieces of an instruction decide what it does, what the registers and memory are for, and what the program prints
-      or draws. That design is shown back to it on every instruction and rendered on the page as its own pane. It is
+      bytes of an instruction decide what it does, what the registers and memory are for, and, as a worked example,
+      what the first instruction is under those rules. It is asked for rules it can apply to any bytes, not a story
+      about this program, and reminded that the machine has no hidden print routine to call. That design is shown
+      back to it on every instruction and rendered on the page as its own pane. It is
       held to it in two ways. The model can change its mind, but only with a <code>revise</code> op that rewrites one
       part of the design out loud, and every revision shows in the trace. And the machine checks the one rule the
       free reading has, that the same bytes mean the same thing: an instruction whose bytes were read before with a

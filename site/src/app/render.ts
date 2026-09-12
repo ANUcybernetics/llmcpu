@@ -394,7 +394,7 @@ const FIELD_LABELS: Record<(typeof LANGUAGE_FIELDS)[number], string> = {
   instruction: "an instruction is",
   meaning: "it means",
   state: "registers and memory are for",
-  output: "it prints or draws",
+  example: "so the first instruction",
 };
 
 /**

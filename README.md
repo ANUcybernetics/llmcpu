@@ -75,9 +75,10 @@ or prompt change.
 
 1. Step zero, in the free reading: the model is shown the first 64 bytes of
    memory and designs the language they are in (a JSON-constrained reply: name,
-   what an instruction is, what its pieces mean, what registers and memory are
-   for, what gets printed or drawn). The design is echoed to it on every step
-   and shown on the page; a `revise` op changes one part of it out loud.
+   what an instruction is, how its bytes decide what it does, what registers and
+   memory are for, and the first instruction as a worked example). The design is
+   echoed to it on every step and shown on the page; a `revise` op changes one
+   part of it out loud.
 2. The prompt carries the machine state (how much is a knob), 64 bytes from pc
    in the free reading, the model's own recent trace, its language and its
    scratchpad note. The reading knob decides what it is told about instructions:

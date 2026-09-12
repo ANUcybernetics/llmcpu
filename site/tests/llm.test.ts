@@ -29,7 +29,7 @@ import { cloneMachine, imageFromBytes, imageFromText, machineFromImage } from ".
  * reasoning request with a sentence, and the design step with the first reply
  * when that is a design, otherwise with a stock one.
  */
-const STOCK_DESIGN = { name: "Stock", instruction: "i", meaning: "m", state: "s", output: "o" };
+const STOCK_DESIGN = { name: "Stock", instruction: "i", meaning: "m", state: "s", example: "e" };
 const scripted = (replies: object[]): Backend => {
   let i = 0;
   return {
@@ -444,7 +444,7 @@ describe("language design", () => {
       instruction: "one word per instruction",
       meaning: "the letters spell what to print",
       state: "a0 counts words",
-      output: "each word is printed",
+      example: "the first word, Because, is printed",
     };
     const backend: Backend = {
       id: "designer",
@@ -506,7 +506,7 @@ describe("language design", () => {
     const cpu = new LlmCpu(
       m,
       scripted([
-        { name: "L", instruction: "one byte", meaning: "m", state: "s", output: "o" },
+        { name: "L", instruction: "one byte", meaning: "m", state: "s", example: "e" },
         {
           comment: "rethink",
           ops: [
@@ -534,7 +534,7 @@ describe("language design", () => {
     const cpu = new LlmCpu(
       m,
       scripted([
-        { name: "L", instruction: "i", meaning: "m", state: "s", output: "o" },
+        { name: "L", instruction: "i", meaning: "m", state: "s", example: "e" },
         {
           comment: "1",
           ops: [

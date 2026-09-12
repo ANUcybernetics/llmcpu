@@ -65,11 +65,11 @@ export interface LanguageDesign {
   meaning: string;
   /** what the registers and memory are for */
   state: string;
-  /** what gets printed on the console or drawn on the display */
-  output: string;
+  /** the rules applied to the first instruction: which bytes it is and exactly what it does */
+  example: string;
 }
 
-export const LANGUAGE_FIELDS = ["instruction", "meaning", "state", "output"] as const;
+export const LANGUAGE_FIELDS = ["instruction", "meaning", "state", "example"] as const;
 export type LanguageField = (typeof LANGUAGE_FIELDS)[number];
 
 const LANGUAGE_TEXT = { type: "string", maxLength: 300 } as const;
@@ -82,7 +82,7 @@ export const languageJsonSchema = {
     instruction: LANGUAGE_TEXT,
     meaning: LANGUAGE_TEXT,
     state: LANGUAGE_TEXT,
-    output: LANGUAGE_TEXT,
+    example: LANGUAGE_TEXT,
   },
   required: ["name", ...LANGUAGE_FIELDS],
   additionalProperties: false as const,
@@ -118,7 +118,7 @@ export function systemPrompt(knobs: Knobs): string {
       : null,
     `{"op":"note","text":"..."} -> replace your scratchpad note, which is shown to you every step`,
     free
-      ? `{"op":"revise","field":"instruction|meaning|state|output","text":"..."} -> rewrite one part of your language design; everyone watching sees the change`
+      ? `{"op":"revise","field":"instruction|meaning|state|example","text":"..."} -> rewrite one part of your language design; everyone watching sees the change`
       : null,
   ].filter((t) => t !== null);
 
@@ -180,7 +180,7 @@ export const languageEcho = (design: LanguageDesign): string =>
     `- instruction: ${design.instruction}`,
     `- meaning: ${design.meaning}`,
     `- state: ${design.state}`,
-    `- output: ${design.output}`,
+    `- example, the first instruction: ${design.example}`,
   ].join("\n");
 
 /** A window of memory from `addr`, as hex rows of 16 and as text, for the free reading. */
@@ -280,7 +280,7 @@ export function designPrompt(m: MachineState, imageSize: number): ChatMessage {
     content: [
       `Nothing has run yet. Memory holds a ${imageSize}-byte program starting at ${hex(0)}, and pc is ${hex(0)}. Here are its first ${shown} bytes:`,
       contextWindow(m, 0, shown),
-      `Before you run it, design the language it is written in. Be concrete and specific to these bytes: how many bytes make one instruction, or what marks where one ends; how the bytes of an instruction decide what it does; what the registers and the memory are for; and what the program prints on the console or draws on the display. Give the language a name. Reply with JSON only, in the form {"name": "...", "instruction": "...", "meaning": "...", "state": "...", "output": "..."}, each part one to three sentences. You will be held to this design on every instruction.`,
+      `Before you run it, design the language it is written in: rules you can apply to any bytes, not a description of what this program will do. Say how many bytes make one instruction, or what marks where one ends. Say how the bytes of an instruction decide what it does: what they print or draw, which register or memory byte they change, or where they jump. Say what the registers and the memory are for. Then apply your rules to the first instruction as an example: which bytes it is, and exactly what it does. Remember that this machine has no subroutines, libraries or hidden routines: the only things that ever happen are the ops you issue, so a rule that says "call the print routine" does nothing. Give the language a name. Reply with JSON only, in the form {"name": "...", "instruction": "...", "meaning": "...", "state": "...", "example": "..."}, each part one to three sentences. You will be held to these rules on every instruction.`,
     ].join("\n"),
   };
 }

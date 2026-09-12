@@ -79,7 +79,7 @@ const LanguageSchema = z.object({
   instruction: z.string(),
   meaning: z.string(),
   state: z.string(),
-  output: z.string(),
+  example: z.string(),
 });
 
 const now = (): number => (typeof performance === "undefined" ? Date.now() : performance.now());
