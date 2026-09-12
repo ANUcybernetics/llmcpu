@@ -2,12 +2,16 @@
 
 A computer whose CPU is a language model. The model is handed the bytes at the
 program counter and a few tools (read and write memory, read and write
-registers, one piece of 32-bit arithmetic, move the program counter) and runs
-whatever is in memory: a poem, a photograph, noise, or a real RISC-V program. By
-default it is told nothing about what an instruction is; it chooses how many
-bytes to take and what they mean. For RISC-V programs a silicon RV32I
-interpreter can run alongside in lockstep to show where the model's reading
-parts from the official one.
+registers, one piece of 32-bit arithmetic, print, light a pixel, move the
+program counter) and runs whatever is in memory: a poem, a photograph, a MIDI
+file, a font, an x86-64 executable, noise, or a real RISC-V program. By default
+it is told nothing about what an instruction is: before running anything it
+designs the language it thinks the bytes are in, and is then held to it. The
+page shows where it rewrites the program as it reads it, where it breaks its own
+rules, and what it draws on a 32 by 32 display. Recordings of real runs replay
+on any machine; for RISC-V programs a silicon RV32I interpreter can run
+alongside in lockstep to show where the model's reading parts from the official
+one.
 
 Everything runs in the browser: the model through
 [WebLLM](https://github.com/mlc-ai/web-llm) on WebGPU, the machine in
@@ -17,9 +21,10 @@ TypeScript. There is no server. Live at
 Two halves:
 
 - **`programs/`**: small bare-metal C programs compiled with clang for the
-  machine (RV32I, 16 KiB, a memory-mapped console page and halt port). The ELFs,
-  objdump listings and DWARF line tables are committed, so the site build needs
-  no cross-compiler. `programs/README.md` has the machine spec and build notes.
+  machine (RV32I, 16 KiB, a memory-mapped console page, halt port and pixel
+  display). The ELFs, objdump listings and DWARF line tables are committed, so
+  the site build needs no cross-compiler. `programs/README.md` has the machine
+  spec and build notes.
 - **`site/`**: the Astro static site. `site/src/lib/rv32i` is the machine
   (decoder, executor, ELF loader, any-bytes images), `site/src/lib/llm` is the
   model side (micro-op schema, prompt builder, runner, lockstep comparator,
