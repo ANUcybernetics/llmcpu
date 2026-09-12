@@ -357,7 +357,17 @@ function wireFeed(): void {
   });
 }
 
-function populateSelects(): void {
+/** WebGPU is usable only if an adapter actually answers; headless and some virtual machines expose the API without one. */
+async function webGpuAvailable(): Promise<boolean> {
+  if (!hasWebGpu()) return false;
+  try {
+    return (await navigator.gpu.requestAdapter()) !== null;
+  } catch {
+    return false;
+  }
+}
+
+async function populateSelects(): Promise<void> {
   const program = $<HTMLSelectElement>("program");
   for (const p of PROGRAMS) {
     const option = document.createElement("option");
@@ -366,7 +376,7 @@ function populateSelects(): void {
     program.append(option);
   }
   const model = $<HTMLSelectElement>("model");
-  const gpu = hasWebGpu();
+  const gpu = await webGpuAvailable();
   for (const m of MODEL_OPTIONS) {
     const option = document.createElement("option");
     option.value = m.id;
@@ -377,12 +387,12 @@ function populateSelects(): void {
   model.value = gpu ? DEFAULT_MODEL_ID : ORACLE_ID;
   if (!gpu) {
     $("model-note").textContent =
-      "This browser has no WebGPU, so a language model cannot run here. The oracle still works. Chrome, Edge, Safari 26 and recent Firefox all support WebGPU.";
+      "This browser has no usable WebGPU, so a language model cannot run here. The oracle still works. Chrome, Edge, Safari 26 and recent Firefox all support WebGPU on hardware with a GPU.";
   }
 }
 
 export async function main(): Promise<void> {
-  populateSelects();
+  await populateSelects();
   wireHoverLinking($("machine"));
   wireFeed();
   $("program").addEventListener("change", (event) => {
