@@ -3,9 +3,10 @@ id: TASK-6
 title: >-
   Redesign toward readings that go off the rails: invented languages, a pixel
   display, non-text inputs, recorded runs
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-09-12 06:48'
+updated_date: '2026-09-12 12:49'
 labels: []
 dependencies: []
 priority: high
@@ -36,10 +37,10 @@ Out of scope for this task: a Prompt API backend (task-2), the in-browser assemb
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Step zero produces a language design that is displayed on the page and echoed to the model on every step; the trace flags inconsistent readings of identical bytes
-- [ ] #2 A memory-mapped pixel display is part of the machine, drawn live, with at least one RISC-V program that draws on it and the map kept in sync across programs/ and site/
-- [ ] #3 The JPEG and random-bytes inputs have been run on 9B and 2B and the prompt has been revised in light of what happened, with notes on task-4
-- [ ] #4 Self-modification is a visible measure with highlighted bytes and a diff against the original image
-- [ ] #5 At least three recorded 9B runs ship as static data and replay in the interface without a model, each labelled with model, knobs, date and hardware, and never presented as live
-- [ ] #6 Landing and about copy describe the language-design step and the display; CLAUDE.md constraints updated for the new map
+- [x] #1 Step zero produces a language design that is displayed on the page and echoed to the model on every step; the trace flags inconsistent readings of identical bytes
+- [x] #2 A memory-mapped pixel display is part of the machine, drawn live, with at least one RISC-V program that draws on it and the map kept in sync across programs/ and site/
+- [x] #3 The JPEG and random-bytes inputs have been run on 9B and 2B and the prompt has been revised in light of what happened, with notes on task-4
+- [x] #4 Self-modification is a visible measure with highlighted bytes and a diff against the original image
+- [x] #5 At least three recorded 9B runs ship as static data and replay in the interface without a model, each labelled with model, knobs, date and hardware, and never presented as live
+- [x] #6 Landing and about copy describe the language-design step and the display; CLAUDE.md constraints updated for the new map
 <!-- AC:END -->
