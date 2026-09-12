@@ -75,6 +75,11 @@
     max-width: 100%;
     height: auto;
   }
+
+  /* components set display on hidden-able elements, which would beat the UA rule */
+  [hidden] {
+    display: none !important;
+  }
 }
 
 @layer base {
