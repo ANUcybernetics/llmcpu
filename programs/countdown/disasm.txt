@@ -1,0 +1,50 @@
+
+countdown/main.elf:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <_start>:
+       0:      	auipc	sp, 4
+       4:      	addi	sp, sp, 0
+
+00000008 <.Lpcrel_hi1>:
+       8:      	auipc	a0, 0
+       c:      	addi	a0, a0, 156
+
+00000010 <.Lpcrel_hi2>:
+      10:      	auipc	a1, 0
+      14:      	addi	a1, a1, 148
+      18:      	bge	a0, a1, 0x28 <.Lline_table_start0+0x28>
+      1c:      	sw	zero, 0(a0)
+      20:      	addi	a0, a0, 4
+      24:      	jal	zero, 0x18 <.Lline_table_start0+0x18>
+      28:      	auipc	ra, 0
+      2c:      	jalr	ra, 24(ra) <.Lline_table_start0+0x40>
+      30:      	lui	a1, 4
+      34:      	addi	a1, a1, 4
+      38:      	sw	a0, 0(a1)
+      3c:      	jal	zero, 0x3c <.Lline_table_start0+0x3c>
+
+00000040 <main>:
+      40:      	addi	a2, zero, 53
+      44:      	lui	a0, 4
+      48:      	addi	a1, zero, 32
+      4c:      	addi	a3, zero, 1
+      50:      	sw	a2, 0(a0)
+      54:      	addi	a4, a2, -48
+      58:      	addi	a2, a2, -1
+      5c:      	sw	a1, 0(a0)
+      60:      	bltu	a3, a4, 0x50 <.Lline_table_start0+0x50>
+      64:      	lui	a0, 0
+      68:      	addi	a2, a0, 152
+      6c:      	addi	a0, a2, 1
+      70:      	addi	a3, zero, 108
+      74:      	lui	a1, 4
+      78:      	addi	a2, a2, 9
+      7c:      	andi	a3, a3, 255
+      80:      	sw	a3, 0(a1)
+      84:      	lbu	a3, 0(a0)
+      88:      	addi	a0, a0, 1
+      8c:      	bne	a0, a2, 0x7c <.Lline_table_start0+0x7c>
+      90:      	addi	a0, zero, 0
+      94:      	jalr	zero, 0(ra)

@@ -1,0 +1,41 @@
+
+hello/main.elf:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <_start>:
+       0:      	auipc	sp, 4
+       4:      	addi	sp, sp, 0
+
+00000008 <.Lpcrel_hi1>:
+       8:      	auipc	a0, 0
+       c:      	addi	a0, a0, 116
+
+00000010 <.Lpcrel_hi2>:
+      10:      	auipc	a1, 0
+      14:      	addi	a1, a1, 108
+      18:      	bge	a0, a1, 0x28 <.Lline_table_start0+0x28>
+      1c:      	sw	zero, 0(a0)
+      20:      	addi	a0, a0, 4
+      24:      	jal	zero, 0x18 <.Lline_table_start0+0x18>
+      28:      	auipc	ra, 0
+      2c:      	jalr	ra, 24(ra) <.Lline_table_start0+0x40>
+      30:      	lui	a1, 4
+      34:      	addi	a1, a1, 4
+      38:      	sw	a0, 0(a1)
+      3c:      	jal	zero, 0x3c <.Lline_table_start0+0x3c>
+
+00000040 <main>:
+      40:      	lui	a0, 0
+      44:      	addi	a2, a0, 116
+      48:      	addi	a0, a2, 1
+      4c:      	addi	a3, zero, 104
+      50:      	lui	a1, 4
+      54:      	addi	a2, a2, 7
+      58:      	andi	a3, a3, 255
+      5c:      	sw	a3, 0(a1)
+      60:      	lbu	a3, 0(a0)
+      64:      	addi	a0, a0, 1
+      68:      	bne	a0, a2, 0x58 <.Lline_table_start0+0x58>
+      6c:      	addi	a0, zero, 0
+      70:      	jalr	zero, 0(ra)

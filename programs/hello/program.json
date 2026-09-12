@@ -1,0 +1,6 @@
+{
+  "title": "Hello",
+  "blurb": "Prints a friendly greeting, the simplest possible program.",
+  "expected_output": "hello\n",
+  "order": 1
+}

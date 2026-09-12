@@ -1,0 +1,105 @@
+
+sort/main.elf:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <_start>:
+       0:      	auipc	sp, 4
+       4:      	addi	sp, sp, 0
+
+00000008 <.Lpcrel_hi1>:
+       8:      	auipc	a0, 0
+       c:      	addi	a0, a0, 400
+
+00000010 <.Lpcrel_hi2>:
+      10:      	auipc	a1, 0
+      14:      	addi	a1, a1, 392
+      18:      	bge	a0, a1, 0x28 <.Lpcrel_hi2+0x18>
+      1c:      	sw	zero, 0(a0)
+      20:      	addi	a0, a0, 4
+      24:      	jal	zero, 0x18 <.Lpcrel_hi2+0x8>
+      28:      	auipc	ra, 0
+      2c:      	jalr	ra, 24(ra) <main>
+      30:      	lui	a1, 4
+      34:      	addi	a1, a1, 4
+      38:      	sw	a0, 0(a1)
+      3c:      	jal	zero, 0x3c <.Lpcrel_hi2+0x2c>
+
+00000040 <main>:
+      40:      	addi	sp, sp, -32
+      44:      	addi	a0, zero, 0
+      48:      	addi	a1, zero, 2
+      4c:      	sw	a1, 28(sp)
+      50:      	addi	a1, zero, 1
+      54:      	sw	a1, 24(sp)
+      58:      	addi	a1, zero, 4
+      5c:      	sw	a1, 20(sp)
+      60:      	addi	a2, zero, 3
+      64:      	sw	a2, 16(sp)
+      68:      	addi	a2, zero, 5
+      6c:      	sw	a2, 12(sp)
+      70:      	addi	a2, sp, 16
+      74:      	addi	a3, sp, 12
+      78:      	jal	zero, 0x84 <main+0x44>
+      7c:      	addi	a0, a0, 1
+      80:      	beq	a0, a1, 0xb8 <main+0x78>
+      84:      	slli	a4, a0, 2
+      88:      	sub	a4, a3, a4
+      8c:      	addi	a4, a4, 20
+      90:      	addi	a5, a2, 0
+      94:      	jal	zero, 0xa0 <main+0x60>
+      98:      	addi	a5, a5, 4
+      9c:      	beq	a5, a4, 0x7c <main+0x3c>
+      a0:      	lw	a6, -4(a5)
+      a4:      	lw	a7, 0(a5)
+      a8:      	bge	a7, a6, 0x98 <main+0x58>
+      ac:      	sw	a7, -4(a5)
+      b0:      	sw	a6, 0(a5)
+      b4:      	jal	zero, 0x98 <main+0x58>
+      b8:      	addi	a0, zero, 0
+      bc:      	addi	a1, sp, 12
+      c0:      	lui	a2, 0
+      c4:      	addi	a2, a2, 392
+      c8:      	addi	a3, zero, 3
+      cc:      	lui	a4, 4
+      d0:      	addi	a5, zero, 4
+      d4:      	addi	a6, zero, 5
+      d8:      	addi	a7, zero, 32
+      dc:      	jal	zero, 0xe8 <main+0xa8>
+      e0:      	addi	a0, a0, 1
+      e4:      	beq	a0, a6, 0x15c <main+0x11c>
+      e8:      	slli	t0, a0, 2
+      ec:      	add	t0, a1, t0
+      f0:      	lw	t0, 0(t0)
+      f4:      	addi	t1, zero, 0
+      f8:      	addi	t2, zero, 0
+      fc:      	jal	zero, 0x118 <main+0xd8>
+     100:      	addi	t2, t3, 48
+     104:      	andi	t2, t2, 255
+     108:      	sw	t2, 0(a4)
+     10c:      	addi	t2, zero, 1
+     110:      	addi	t1, t1, 1
+     114:      	beq	t1, a5, 0x150 <main+0x110>
+     118:      	slli	t3, t1, 2
+     11c:      	add	t3, a2, t3
+     120:      	lw	t4, 0(t3)
+     124:      	bgeu	t0, t4, 0x130 <main+0xf0>
+     128:      	addi	t3, zero, 0
+     12c:      	jal	zero, 0x140 <main+0x100>
+     130:      	addi	t3, zero, 0
+     134:      	sub	t0, t0, t4
+     138:      	addi	t3, t3, 1
+     13c:      	bgeu	t0, t4, 0x134 <main+0xf4>
+     140:      	beq	t1, a3, 0x100 <main+0xc0>
+     144:      	or	t2, t3, t2
+     148:      	beq	t2, zero, 0x110 <main+0xd0>
+     14c:      	jal	zero, 0x100 <main+0xc0>
+     150:      	beq	a0, a5, 0xe0 <main+0xa0>
+     154:      	sw	a7, 0(a4)
+     158:      	jal	zero, 0xe0 <main+0xa0>
+     15c:      	lui	a0, 4
+     160:      	addi	a1, zero, 10
+     164:      	sw	a1, 0(a0)
+     168:      	addi	a0, zero, 0
+     16c:      	addi	sp, sp, 32
+     170:      	jalr	zero, 0(ra)

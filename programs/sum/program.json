@@ -1,0 +1,6 @@
+{
+  "title": "Sum",
+  "blurb": "Adds up five numbers in a list and prints the total.",
+  "expected_output": "14\n",
+  "order": 3
+}

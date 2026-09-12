@@ -1,0 +1,6 @@
+{
+  "title": "Countdown",
+  "blurb": "Counts down from five to one, then launches, like a rocket.",
+  "expected_output": "5 4 3 2 1 liftoff\n",
+  "order": 2
+}

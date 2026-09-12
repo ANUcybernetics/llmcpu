@@ -1,0 +1,6 @@
+{
+  "title": "Reverse",
+  "blurb": "Flips a short word back to front, letter by letter.",
+  "expected_output": "upcmll\n",
+  "order": 5
+}

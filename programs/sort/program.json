@@ -1,0 +1,6 @@
+{
+  "title": "Sort",
+  "blurb": "Puts five jumbled numbers back in order, smallest to largest.",
+  "expected_output": "1 2 3 4 5\n",
+  "order": 6
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "addr": 64,
+    "line": 3,
+    "file": "main.c"
+  },
+  {
+    "addr": 80,
+    "line": 20,
+    "file": "llmcpu.h"
+  },
+  {
+    "addr": 84,
+    "line": 4,
+    "file": "main.c"
+  },
+  {
+    "addr": 92,
+    "line": 20,
+    "file": "llmcpu.h"
+  },
+  {
+    "addr": 132,
+    "line": 24,
+    "file": "llmcpu.h"
+  },
+  {
+    "addr": 144,
+    "line": 9,
+    "file": "main.c"
+  }
+]
