@@ -1,17 +1,20 @@
 # Build every programs/<name>/main.c into <name>/main.elf, <name>/disasm.txt
 # and <name>/lines.json. main.elf, disasm.txt and lines.json are committed
 # artefacts (the site build never invokes a cross-compiler); only *.o is
-# scratch and removed by `make clean`.
+# scratch and removed by `make clean`. Every tool is the versioned llvm-18
+# binary and the ELF carries no absolute path (-fdebug-compilation-dir), so a
+# rebuild anywhere with the same packages reproduces the committed files byte
+# for byte; CI relies on that to check they are fresh.
 
-CC        := clang
+CC        := clang-18
 TARGET     = --target=riscv32
 ARCHFLAGS  = -march=rv32i -mabi=ilp32
 
 CFLAGS  := $(TARGET) $(ARCHFLAGS) -ffreestanding -fno-builtin -nostdlib \
-           -mno-relax -O1 -g -Wall -Wextra -Werror -I.
+           -mno-relax -O1 -g -fdebug-compilation-dir=. -Wall -Wextra -Werror -I.
 ASFLAGS := $(TARGET) $(ARCHFLAGS) -mno-relax
 
-LD       := ld.lld
+LD       := ld.lld-18
 OBJDUMP  := llvm-objdump-18
 NM       := llvm-nm-18
 LINES    := uv run lines.py
