@@ -10,6 +10,8 @@ import {
   LANGUAGE_FIELDS,
   type LanguageDesign,
   type LlmStep,
+  type Rewrite,
+  rewrittenBytes,
 } from "../lib/llm";
 import {
   ABI_NAMES,
@@ -172,6 +174,8 @@ export interface Highlights {
   pixels: Set<number>;
   /** bytes the last instruction consumed */
   read: { from: number; to: number } | null;
+  /** bytes of the program image that no longer match what was loaded */
+  rewritten: Set<number>;
 }
 
 export function paintMarkers(
@@ -189,6 +193,7 @@ export function paintMarkers(
     node.classList.toggle("pc-silicon", silicon !== null && covers(silicon.pc));
     if (!isAsm) {
       node.classList.toggle("changed", marks.mem.has(a));
+      node.classList.toggle("rewritten", marks.rewritten.has(a));
       node.classList.toggle(
         "read",
         marks.read !== null && a >= marks.read.from && a < marks.read.to,
@@ -431,6 +436,26 @@ export function renderLanguage(
     dd.textContent = language[field];
     dd.classList.toggle("revised", revised.has(field));
     card.append(dt, dd);
+  }
+}
+
+const bytesAsText = (bytes: number[]): string =>
+  bytes.map((b) => (b >= 0x20 && b < 0x7f ? String.fromCharCode(b) : "·")).join("");
+
+/** The self-modification headline and its diff against the loaded image. */
+export function renderRewrites(rs: Rewrite[]): void {
+  const box = el("rewrite");
+  const n = rewrittenBytes(rs);
+  box.hidden = n === 0;
+  if (n === 0) return;
+  el("rewritten").textContent =
+    `The program has rewritten ${n} byte${n === 1 ? "" : "s"} of itself, in ${rs.length} place${rs.length === 1 ? "" : "s"}.`;
+  const list = el<HTMLOListElement>("rewrite-list");
+  list.replaceChildren();
+  for (const r of rs) {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="addr">${hex(r.from, 4)}</span><span class="diff"><del title="${escape(r.before.map(byte).join(" "))}">${escape(bytesAsText(r.before))}</del><ins title="${escape(r.after.map(byte).join(" "))}">${escape(bytesAsText(r.after))}</ins></span><span class="muted">${r.to - r.from} byte${r.to - r.from === 1 ? "" : "s"}</span>`;
+    list.append(li);
   }
 }
 

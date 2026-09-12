@@ -127,6 +127,14 @@ import "../styles/machine.css";
     </section>
   </div>
 
+  <div id="rewrite" class="rewrite" hidden>
+    <p id="rewritten" class="rewritten"></p>
+    <details>
+      <summary>what changed, against the bytes that were loaded</summary>
+      <ol id="rewrite-list" class="rewrite-list mono"></ol>
+    </details>
+  </div>
+
   <div class="controls">
     <button type="button" id="step" disabled>Step</button>
     <button type="button" id="run" disabled>Run</button>

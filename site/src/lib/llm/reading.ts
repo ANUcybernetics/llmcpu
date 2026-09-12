@@ -38,7 +38,12 @@ export interface RunMetrics {
   revisions: number;
 }
 
-export function runMetrics(steps: LlmStep[], machine: MachineState): RunMetrics {
+/**
+ * `free` says whether the run was a free reading, where "the same bytes mean
+ * the same thing" was a rule; in the RISC-V readings a branch legitimately
+ * behaves differently each time and silicon is the judge instead.
+ */
+export function runMetrics(steps: LlmStep[], machine: MachineState, free = true): RunMetrics {
   const touched = new Set<number>();
   const plotted = new Set<number>();
   const regs = new Set<number>();
@@ -62,7 +67,7 @@ export function runMetrics(steps: LlmStep[], machine: MachineState): RunMetrics 
     plotted: plotted.size,
     registersWritten: regs.size,
     halted: machine.halted,
-    inconsistent: steps.filter((s) => inconsistentWith(steps, s) !== null).length,
+    inconsistent: free ? steps.filter((s) => inconsistentWith(steps, s) !== null).length : 0,
     revisions: steps.reduce((n, s) => n + s.revisions.length, 0),
   };
 }
@@ -72,9 +77,10 @@ export const chunkKey = (step: LlmStep): string | null =>
   step.read.length > 0 ? step.read.map((b) => b.toString(16).padStart(2, "0")).join(" ") : null;
 
 /**
- * What a step did, without the values that legitimately depend on machine
+ * What a step did, without the parts that legitimately depend on machine
  * state: the same bytes should print the same text, touch the same registers,
- * write and draw the same amount, and either jump or not.
+ * and write and draw the same amount. Whether it jumped is left out, since a
+ * conditional branch is a reasonable thing for an invented language to have.
  */
 export function effectSignature(step: LlmStep): string {
   const regs = [...new Set(step.delta.regWrites.map((w) => w.reg))].toSorted((a, b) => a - b);
@@ -89,7 +95,6 @@ export function effectSignature(step: LlmStep): string {
     regs,
     mem,
     pixels,
-    jump: consumedRange(step) === null,
     halted: step.delta.halted !== null,
   });
 }
@@ -138,3 +143,43 @@ export function effectsSummary(step: LlmStep): string {
   for (const r of step.revisions) parts.push(`revised its language (${r.field})`);
   return parts.join("; ") || "no visible effect";
 }
+
+/** A run of bytes inside the program image that no longer match what was loaded. */
+export interface Rewrite {
+  /** inclusive */
+  from: number;
+  /** exclusive */
+  to: number;
+  before: number[];
+  after: number[];
+}
+
+/**
+ * Where the program has rewritten itself: contiguous runs of bytes inside
+ * `code` (the loaded image for raw bytes, the executable segments of an ELF)
+ * that differ from the original image. Pure, so step-back needs no bookkeeping.
+ */
+export function rewrites(original: Uint8Array, current: Uint8Array, code: ByteRange[]): Rewrite[] {
+  const out: Rewrite[] = [];
+  for (const range of code) {
+    let run: Rewrite | null = null;
+    for (let a = range.from; a < Math.min(range.to, original.length, current.length); a++) {
+      if (original[a] === current[a]) {
+        run = null;
+        continue;
+      }
+      if (run && run.to === a) {
+        run.to = a + 1;
+        run.before.push(original[a]!);
+        run.after.push(current[a]!);
+      } else {
+        run = { from: a, to: a + 1, before: [original[a]!], after: [current[a]!] };
+        out.push(run);
+      }
+    }
+  }
+  return out;
+}
+
+export const rewrittenBytes = (rs: Rewrite[]): number =>
+  rs.reduce((n, r) => n + (r.to - r.from), 0);

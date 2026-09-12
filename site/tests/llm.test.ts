@@ -12,6 +12,8 @@ import {
   recordingImage,
   recordRun,
   ReplayCpu,
+  rewrites,
+  rewrittenBytes,
   mockBackend,
   OpSchema,
   parseStep,
@@ -624,5 +626,26 @@ describe("recordings", () => {
     expect([...replay.machine.regs]).toEqual([...live.regs]);
     expect([...replay.machine.mem]).toEqual([...live.mem]);
     expect(runMetrics(replay.steps, replay.machine)).toEqual(runMetrics(cpu.steps, live));
+  });
+});
+
+describe("self-modification", () => {
+  it("reports contiguous runs of image bytes that differ from what was loaded, and nothing outside the image", () => {
+    const original = new TextEncoder().encode("Because I could not stop");
+    const current = original.slice();
+    current.set(new TextEncoder().encode("XYZ"), 4);
+    current[20] = 0x58;
+    const whole = [{ from: 0, to: original.length }];
+    const rs = rewrites(original, current, whole);
+    expect(rs.map((r) => [r.from, r.to])).toEqual([
+      [4, 7],
+      [20, 21],
+    ]);
+    expect(rs[0]).toMatchObject({ before: [0x75, 0x73, 0x65], after: [0x58, 0x59, 0x5a] });
+    expect(rewrittenBytes(rs)).toBe(4);
+    // bytes past the image end (or written back to their original value) do not count
+    expect(rewrites(original, current, [{ from: 0, to: 4 }])).toEqual([]);
+    current[20] = original[20]!;
+    expect(rewrittenBytes(rewrites(original, current, whole))).toBe(3);
   });
 });

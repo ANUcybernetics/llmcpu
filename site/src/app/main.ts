@@ -4,6 +4,7 @@
 import { INPUTS, type InputEntry, inputBySlug } from "../lib/inputs";
 import {
   type Backend,
+  type ByteRange,
   type Cpu,
   DEFAULT_KNOBS,
   DEFAULT_MODEL_ID,
@@ -19,6 +20,7 @@ import {
   recordingImage,
   recordRun,
   ReplayCpu,
+  rewrites,
   runMetrics,
   webLlmModelId,
 } from "../lib/llm";
@@ -56,6 +58,7 @@ import {
   renderLanguage,
   renderMemory,
   renderRegisters,
+  renderRewrites,
   renderSource,
   renderTextView,
   setLatest,
@@ -70,6 +73,10 @@ interface Session {
   textEnd: number;
   bands: Bands;
   model: MachineState;
+  /** memory as loaded, to tell what the program has rewritten */
+  original: Uint8Array;
+  /** where the program's code is: the whole image for raw bytes, the executable segments of an ELF */
+  code: ByteRange[];
   lock: Lockstep;
   cpu: Cpu | null;
   /** set while a recording is being replayed instead of a model run */
@@ -88,7 +95,13 @@ let gpu: { f16: boolean } | null = null;
 
 const ORACLE_ID = "oracle";
 const plural = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? "" : "s"}`;
-const NO_MARKS: Highlights = { regs: new Set(), mem: new Set(), pixels: new Set(), read: null };
+const NO_MARKS: Highlights = {
+  regs: new Set(),
+  mem: new Set(),
+  pixels: new Set(),
+  read: null,
+  rewritten: new Set(),
+};
 
 const hasWebGpu = (): boolean => typeof navigator !== "undefined" && "gpu" in navigator;
 const isElf = (): boolean => session.image.kind === "elf";
@@ -119,9 +132,13 @@ function newSession(
 ): Session {
   const model = machineFromImage(image);
   let textEnd = Math.min(RAM_SIZE, image.bytes.length);
+  let code: ByteRange[] = [{ from: 0, to: textEnd }];
   if (image.kind === "elf") {
     const elf = parseElf(image.bytes);
     textEnd = Math.max(...elf.segments.map((s) => s.vaddr + s.data.length));
+    code = elf.segments
+      .filter((s) => s.executable)
+      .map((s) => ({ from: s.vaddr, to: s.vaddr + s.data.length }));
   }
   const bands = program ? buildBands(program.lines, textEnd) : NO_BANDS;
   return {
@@ -130,6 +147,8 @@ function newSession(
     textEnd,
     bands,
     model,
+    original: model.mem.slice(),
+    code,
     lock: new Lockstep(cloneMachine(model)),
     cpu: recording
       ? new ReplayCpu(recording, model)
@@ -194,9 +213,6 @@ function renderAll(): void {
   renderSource(s.program?.source ?? null, s.bands);
   $("asm-pane").hidden = !elf;
   $("text-pane").hidden = elf;
-  if (elf) renderAsm(s.model, s.textEnd, s.bands);
-  else renderTextView(s.model, s.textEnd);
-  renderMemory(s.model, elf ? s.textEnd + 64 : s.image.bytes.length, s.bands);
   renderState(NO_MARKS);
   clearTrace();
   setLatest(
@@ -227,6 +243,16 @@ function renderState(marks: Highlights): void {
   renderRegisters("model-regs", s.model, format, marks.regs);
   renderCpuStatus("model", s.model, null);
   renderDisplay("model-display", s.model, marks.pixels);
+  // the panes show live memory: repaint them so writes (and step-back) show, then mark
+  const elf = isElf();
+  if (elf) renderAsm(s.model, s.textEnd, s.bands);
+  else renderTextView(s.model, s.textEnd);
+  renderMemory(s.model, elf ? s.textEnd + 64 : s.image.bytes.length, s.bands);
+  const rs = rewrites(s.original, s.model.mem, s.code);
+  renderRewrites(rs);
+  const rewritten = new Set<number>();
+  for (const r of rs) for (let a = r.from; a < r.to; a++) rewritten.add(a);
+  marks = { ...marks, rewritten };
   if (compare) {
     renderRegisters("silicon-regs", s.lock.silicon, format, new Set());
     renderDisplay("silicon-display", s.lock.silicon, new Set());
@@ -237,7 +263,7 @@ function renderState(marks: Highlights): void {
     );
   }
   paintMarkers(s.model, siliconLive ? s.lock.silicon : null, marks);
-  const m = runMetrics(s.cpu?.steps ?? [], s.model);
+  const m = runMetrics(s.cpu?.steps ?? [], s.model, (s.cpu?.knobs ?? knobs).reading === "free");
   $("measures").textContent =
     m.steps === 0
       ? ""
@@ -289,6 +315,7 @@ const marksFor = (step: LlmStep): Highlights => ({
       .filter((w) => onDisplay(w.addr))
       .flatMap((w) => w.after.map((_, i) => w.addr + i)),
   ),
+  rewritten: new Set(),
   read:
     step.pcAfter > step.pcBefore && step.pcAfter - step.pcBefore <= 64
       ? { from: step.pcBefore, to: step.pcAfter }
@@ -330,7 +357,7 @@ async function stepOnce(): Promise<void> {
       s.model,
       word,
       s.bands,
-      inconsistentWith(s.cpu.steps, step),
+      s.cpu.knobs.reading === "free" ? inconsistentWith(s.cpu.steps, step) : null,
     );
     renderState(marksFor(step));
     setLatest(step.comment);
@@ -405,7 +432,8 @@ function reset(): void {
 
 /** Leaving a recording: the knobs unlock and the model dropdown goes back to a live choice. */
 function leaveRecording(): void {
-  if (!session.recording) return;
+  // the first input loads before any session exists
+  if (!(session as Session | undefined)?.recording) return;
   showKnobs(knobs, false);
   $<HTMLSelectElement>("model").value = backend ? $<HTMLSelectElement>("model").value : ORACLE_ID;
 }

@@ -5,6 +5,8 @@
 import { type MachineState, RAM_SIZE, STACK_TOP } from "./machine";
 
 export interface Segment {
+  /** true when the segment is executable (PF_X), i.e. holds code */
+  executable: boolean;
   vaddr: number;
   data: Uint8Array;
   /** total size in memory (>= data.length; the remainder is zero-filled .bss) */
@@ -45,8 +47,14 @@ export function parseElf(bytes: Uint8Array): Elf {
     const vaddr = view.getUint32(off + 8, true);
     const filesz = view.getUint32(off + 16, true);
     const memsz = view.getUint32(off + 20, true);
+    const flags = view.getUint32(off + 24, true);
     if (memsz === 0) continue;
-    segments.push({ vaddr, memsz, data: bytes.slice(offset, offset + filesz) });
+    segments.push({
+      executable: (flags & 1) !== 0,
+      vaddr,
+      memsz,
+      data: bytes.slice(offset, offset + filesz),
+    });
   }
   return { entry, segments };
 }
