@@ -470,7 +470,12 @@ async function loadModel(id: string): Promise<void> {
       note.textContent = "Fetching the recording…";
       const recording = await entry.load();
       running = false;
-      session = newSession(recordingImage(recording), null, recording);
+      const slug = recording.meta.input.slug;
+      session = newSession(
+        recordingImage(recording),
+        slug ? (inputBySlug(slug)?.program ?? null) : null,
+        recording,
+      );
       $<HTMLSelectElement>("program").value = recording.meta.input.slug ?? "custom";
       if (!recording.meta.input.slug) $<HTMLOptionElement>("custom-option").hidden = false;
       showKnobs(recording.meta.knobs, true);
