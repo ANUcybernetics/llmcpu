@@ -610,6 +610,8 @@ describe("recordings", () => {
       ),
     );
     expect(rec.meta).toMatchObject({ steps: cpu.steps.length, knobs: DEFAULT_KNOBS });
+    expect(rec.system).toContain("You are the control unit");
+    expect(rec.steps[0].rounds[0].messages[0]).toEqual({ role: "system", content: "" });
     expect(rec.design.design.name).toBe("RV32I");
     const replay = new ReplayCpu(rec);
     expect(recordingImage(rec).bytes).toEqual(image.bytes);

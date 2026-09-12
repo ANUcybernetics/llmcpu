@@ -11,6 +11,7 @@ import {
   redo,
   undo,
 } from "../rv32i";
+import type { ChatMessage } from "./backend";
 import type { Knobs, LanguageDesign } from "./prompt";
 import type { Cpu, DesignStep, LlmCpu, LlmStep } from "./runner";
 
@@ -38,6 +39,8 @@ export interface Recording {
   meta: RecordingMeta;
   /** the memory image the run started from, base64 */
   image: string;
+  /** the system prompt every round was sent; rounds carry it as an empty system message to save space */
+  system: string;
   design: DesignStep | null;
   steps: LlmStep[];
 }
@@ -57,6 +60,17 @@ export function recordRun(
   image: Image,
   meta: Omit<RecordingMeta, "knobs" | "steps" | "input"> & { input?: { slug: string | null } },
 ): Recording {
+  const system =
+    cpu.design?.messages.find((m) => m.role === "system")?.content ??
+    cpu.steps[0]?.rounds[0]?.messages.find((m) => m.role === "system")?.content ??
+    "";
+  // the same system prompt heads every round; keep one copy
+  const strip = <T extends { messages: ChatMessage[] }>(round: T): T => ({
+    ...round,
+    messages: round.messages.map((m) =>
+      m.role === "system" && m.content === system ? { ...m, content: "" } : m,
+    ),
+  });
   return {
     version: RECORDING_VERSION,
     meta: {
@@ -66,8 +80,9 @@ export function recordRun(
       steps: cpu.steps.length,
     },
     image: toBase64(image.bytes),
-    design: cpu.design,
-    steps: cpu.steps,
+    system,
+    design: cpu.design ? strip(cpu.design) : null,
+    steps: cpu.steps.map((s) => ({ ...s, rounds: s.rounds.map(strip) })),
   };
 }
 
