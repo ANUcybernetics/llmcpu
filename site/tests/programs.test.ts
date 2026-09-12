@@ -53,12 +53,14 @@ describe.each(dirs)("programs/%s", (dir) => {
     }
   });
 
-  it("runs to a halt on the silicon CPU and prints its expected output", () => {
+  it("runs to a halt on the silicon CPU and prints and draws what it promises", () => {
     const m = machineFromImage(imageFromBytes(elfBytes, dir));
     const deltas = run(m, 5000);
     expect(m.halted).toBe(0);
     expect(m.output).toBe(meta.expected_output);
-    expect(deltas.length).toBeLessThan(meta.order === 6 ? 1500 : 500);
+    const lit = m.display.reduce((n, b) => n + ((b & 0xf) === 0 ? 0 : 1), 0);
+    expect(lit).toBe(meta.expected_pixels ?? 0);
+    expect(deltas.length).toBeLessThanOrEqual(meta.max_instructions);
   });
 
   it("has a line table that points inside the program", () => {

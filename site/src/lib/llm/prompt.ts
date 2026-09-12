@@ -9,6 +9,10 @@ import {
   decode,
   DecodeError,
   describe,
+  DISPLAY_ADDR,
+  DISPLAY_END,
+  DISPLAY_H,
+  DISPLAY_W,
   formatFriendly,
   HALT_ADDR,
   hex,
@@ -54,7 +58,7 @@ export interface TraceEntry {
   committed: boolean;
 }
 
-const FREE_READING = `The bytes in memory are a program written in a language only you know. Starting at pc, take the bytes that make up one instruction (usually several: a natural chunk, such as a word or a line of text), decide what that instruction means, carry it out with ops, then move pc with set_pc to the first byte after the ones you used (or wherever the instruction says to go). There is no wrong reading, but two rules: every instruction must do something as well as moving pc (print characters with print or by storing to the console page, change a register, write memory, or jump somewhere else), and the same bytes must mean the same thing each time. The machine can also halt (store to the halt port) when the program is finished.`;
+const FREE_READING = `The bytes in memory are a program written in a language only you know. Starting at pc, take the bytes that make up one instruction (usually several: a natural chunk, such as a word or a line of text), decide what that instruction means, carry it out with ops, then move pc with set_pc to the first byte after the ones you used (or wherever the instruction says to go). There is no wrong reading, but two rules: every instruction must do something as well as moving pc (print characters, draw pixels, change a register, write memory, or jump somewhere else), and the same bytes must mean the same thing each time. The machine can also halt (store to the halt port) when the program is finished.`;
 
 const RV32I_READING = `Your job is to run the program in memory, one instruction at a time. Every instruction is exactly 4 bytes, little-endian, and the bytes at pc are shown to you each step, so you never need to read them again. For each instruction: work out what it means, carry out its effect with ops, then move pc with set_pc. Unless the instruction is a taken branch or a jump, the next instruction is at pc+4. pc must never stay where it is: an instruction that does not move pc has not been executed.`;
 
@@ -65,6 +69,7 @@ export function systemPrompt(knobs: Knobs): string {
     `{"op":"load","addr":A,"size":1|2|4} -> the value stored at A`,
     `{"op":"store","addr":A,"size":1|2|4,"value":V} -> write V at A`,
     `{"op":"print","text":"..."} -> print text on the console (the same as storing its bytes to the console page, in one op)`,
+    `{"op":"pixel","x":X,"y":Y,"colour":C} -> light the pixel at column X, row Y of the display in colour C (the same as storing the byte C at ${hex(DISPLAY_ADDR)} + ${DISPLAY_W}*Y + X)`,
     `{"op":"get_reg","reg":"a0"} -> the value of a register`,
     `{"op":"set_reg","reg":"a0","value":V} -> write a register`,
     `{"op":"alu","fn":"add|sub|and|or|xor|sll|srl|sra|slt|sltu|eq|ne","a":X,"b":Y} -> exact 32-bit arithmetic; use it rather than calculating in your head`,
@@ -76,7 +81,7 @@ export function systemPrompt(knobs: Knobs): string {
   ].filter((t) => t !== null);
 
   return [
-    `You are the control unit of a small 32-bit computer. Memory is ${RAM_SIZE} bytes at addresses ${hex(0)} to ${hex(RAM_SIZE - 1)}. There are 32 registers (x0 to x31, with the usual names ${ABI_NAMES.join(" ")}); zero is always 0. Two memory-mapped devices: the console is the page ${hex(CONSOLE_ADDR)} to ${hex(CONSOLE_END - 1)}, and a store anywhere in it prints the bytes stored, lowest first, up to the first zero byte (so a 4-byte store can print up to four characters); storing a word to ${hex(HALT_ADDR)} halts the machine with that exit code.`,
+    `You are the control unit of a small 32-bit computer. Memory is ${RAM_SIZE} bytes at addresses ${hex(0)} to ${hex(RAM_SIZE - 1)}. There are 32 registers (x0 to x31, with the usual names ${ABI_NAMES.join(" ")}); zero is always 0. Three memory-mapped devices: the console is the page ${hex(CONSOLE_ADDR)} to ${hex(CONSOLE_END - 1)}, and a store anywhere in it prints the bytes stored, lowest first, up to the first zero byte (so a 4-byte store can print up to four characters); storing a word to ${hex(HALT_ADDR)} halts the machine with that exit code; the display is ${DISPLAY_W} pixels wide by ${DISPLAY_H} high at ${hex(DISPLAY_ADDR)} to ${hex(DISPLAY_END - 1)}, one byte per pixel, row by row (the pixel at column x, row y is the byte at ${hex(DISPLAY_ADDR)} + ${DISPLAY_W}*y + x), and the low four bits of each byte pick one of 16 colours (0 black, 1 dark blue, 2 purple, 3 dark green, 4 brown, 5 dark grey, 6 light grey, 7 white, 8 red, 9 orange, 10 yellow, 11 green, 12 blue, 13 lavender, 14 pink, 15 peach).`,
     free ? FREE_READING : RV32I_READING,
     `Reply with JSON only, in the form {"comment": "...", "ops": [ ... ]}. The comment is one plain-English sentence, for the people watching, saying what this instruction does. Ops run in order. Ops that return information (peek, load, get_reg, alu, disasm) pause the list: you get their results back and then continue with more ops for the same instruction. Numbers are unsigned 32-bit values, written as hex strings such as "0x00000004" (decimal integers also work).`,
     `Available ops:\n${tools.map((t) => `- ${t}`).join("\n")}`,

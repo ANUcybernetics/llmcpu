@@ -2,7 +2,7 @@
 // model read, wrote and printed. Pure functions over the trace so the page
 // can recompute them after step-back.
 
-import { ABI_NAMES, hex, type MachineState } from "../rv32i";
+import { ABI_NAMES, hex, type MachineState, onDisplay } from "../rv32i";
 import type { LlmStep } from "./runner";
 
 export interface ByteRange {
@@ -26,14 +26,17 @@ export interface RunMetrics {
   bytesRead: number;
   jumps: number;
   printed: number;
-  /** distinct memory bytes the model wrote */
+  /** distinct memory bytes the model wrote (the display not included) */
   touched: number;
+  /** distinct pixels the model wrote */
+  plotted: number;
   registersWritten: number;
   halted: number | null;
 }
 
 export function runMetrics(steps: LlmStep[], machine: MachineState): RunMetrics {
   const touched = new Set<number>();
+  const plotted = new Set<number>();
   const regs = new Set<number>();
   let bytesRead = 0;
   let jumps = 0;
@@ -42,7 +45,8 @@ export function runMetrics(steps: LlmStep[], machine: MachineState): RunMetrics 
     if (range) bytesRead += range.to - range.from;
     else if (s.committed) jumps++;
     for (const w of s.delta.memWrites)
-      for (let i = 0; i < w.after.length; i++) touched.add(w.addr + i);
+      for (let i = 0; i < w.after.length; i++)
+        (onDisplay(w.addr) ? plotted : touched).add(w.addr + i);
     for (const w of s.delta.regWrites) regs.add(w.reg);
   }
   return {
@@ -51,6 +55,7 @@ export function runMetrics(steps: LlmStep[], machine: MachineState): RunMetrics 
     jumps,
     printed: machine.output.length,
     touched: touched.size,
+    plotted: plotted.size,
     registersWritten: regs.size,
     halted: machine.halted,
   };
@@ -64,11 +69,14 @@ export function effectsSummary(step: LlmStep): string {
   if (step.delta.output) parts.push(`printed ${JSON.stringify(step.delta.output)}`);
   const regs = [...new Set(step.delta.regWrites.map((w) => w.reg))];
   if (regs.length > 0) parts.push(`set ${regs.map(regName).join(", ")}`);
-  const bytes = step.delta.memWrites.reduce((n, w) => n + w.after.length, 0);
+  const memory = step.delta.memWrites.filter((w) => !onDisplay(w.addr));
+  const bytes = memory.reduce((n, w) => n + w.after.length, 0);
   if (bytes > 0)
-    parts.push(
-      `wrote ${bytes} byte${bytes === 1 ? "" : "s"} at ${hex(step.delta.memWrites[0]!.addr, 4)}`,
-    );
+    parts.push(`wrote ${bytes} byte${bytes === 1 ? "" : "s"} at ${hex(memory[0]!.addr, 4)}`);
+  const pixels = step.delta.memWrites
+    .filter((w) => onDisplay(w.addr))
+    .reduce((n, w) => n + w.after.length, 0);
+  if (pixels > 0) parts.push(`drew ${pixels} pixel${pixels === 1 ? "" : "s"}`);
   if (step.delta.halted !== null) parts.push(`halted with exit code ${step.delta.halted}`);
   const range = consumedRange(step);
   if (!range && step.committed)

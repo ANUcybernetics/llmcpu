@@ -28,6 +28,7 @@ import {
   MachineFault,
   machineFromImage,
   type MachineState,
+  onDisplay,
   parseElf,
   RAM_SIZE,
   run,
@@ -42,6 +43,7 @@ import {
   popTraceRow,
   renderAsm,
   renderCpuStatus,
+  renderDisplay,
   renderMemory,
   renderRegisters,
   renderSource,
@@ -73,7 +75,7 @@ let busy = false;
 let gpu: { f16: boolean } | null = null;
 
 const ORACLE_ID = "oracle";
-const NO_MARKS: Highlights = { regs: new Set(), mem: new Set(), read: null };
+const NO_MARKS: Highlights = { regs: new Set(), mem: new Set(), pixels: new Set(), read: null };
 
 const hasWebGpu = (): boolean => typeof navigator !== "undefined" && "gpu" in navigator;
 const isElf = (): boolean => session.image.kind === "elf";
@@ -155,8 +157,10 @@ function renderState(marks: Highlights): void {
     : "One row per instruction: the bytes the model took as an instruction, what it said they meant, and what it did.";
   renderRegisters("model-regs", s.model, format, marks.regs);
   renderCpuStatus("model", s.model, null);
+  renderDisplay("model-display", s.model, marks.pixels);
   if (compare) {
     renderRegisters("silicon-regs", s.lock.silicon, format, new Set());
+    renderDisplay("silicon-display", s.lock.silicon, new Set());
     renderCpuStatus(
       "silicon",
       s.lock.silicon,
@@ -194,7 +198,16 @@ function updateButtons(): void {
 
 const marksFor = (step: LlmCpu["steps"][number]): Highlights => ({
   regs: new Set(step.delta.regWrites.map((w) => w.reg)),
-  mem: new Set(step.delta.memWrites.flatMap((w) => w.after.map((_, i) => w.addr + i))),
+  mem: new Set(
+    step.delta.memWrites
+      .filter((w) => !onDisplay(w.addr))
+      .flatMap((w) => w.after.map((_, i) => w.addr + i)),
+  ),
+  pixels: new Set(
+    step.delta.memWrites
+      .filter((w) => onDisplay(w.addr))
+      .flatMap((w) => w.after.map((_, i) => w.addr + i)),
+  ),
   read:
     step.pcAfter > step.pcBefore && step.pcAfter - step.pcBefore <= 64
       ? { from: step.pcBefore, to: step.pcAfter }

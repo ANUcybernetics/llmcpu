@@ -2,5 +2,6 @@
   "title": "Sort",
   "blurb": "Puts five jumbled numbers back in order, smallest to largest.",
   "expected_output": "1 2 3 4 5\n",
+  "max_instructions": 1500,
   "order": 6
 }

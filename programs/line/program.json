@@ -1,0 +1,8 @@
+{
+  "title": "Line",
+  "blurb": "Draws a diagonal line on the display, one pixel per loop, with Bresenham's algorithm.",
+  "expected_output": "",
+  "expected_pixels": 30,
+  "max_instructions": 600,
+  "order": 7
+}

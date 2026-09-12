@@ -5,15 +5,23 @@ import {
   decode,
   DecodeError,
   describe as describeInstr,
+  DISPLAY_ADDR,
+  DISPLAY_END,
+  DISPLAY_W,
+  emptyDelta,
   formatCanonical,
   formatFriendly,
   imageFromHex,
   imageFromRandom,
   imageFromText,
+  load,
   MachineFault,
   machineFromImage,
+  newMachine,
+  pixelAddr,
   run,
   step,
+  store,
   undo,
 } from "../src/lib/rv32i";
 import { FIXTURE, fixtureBytes } from "./fixture";
@@ -115,6 +123,28 @@ describe("execution", () => {
     step(m);
     expect(m.regs[0]).toBe(0);
     expect(m.pc).toBe(4);
+  });
+});
+
+describe("display", () => {
+  it("is a byte-per-pixel page that reads back, records into deltas and undoes", () => {
+    const m = newMachine();
+    const delta = emptyDelta(0);
+    store(m, delta, pixelAddr(3, 2), 1, 0x0b);
+    store(m, delta, DISPLAY_ADDR + 4, 4, 0x04030201);
+    expect(m.display[2 * DISPLAY_W + 3]).toBe(0x0b);
+    expect(load(m, pixelAddr(3, 2), 1)).toBe(0x0b);
+    expect(load(m, DISPLAY_ADDR + 4, 4)).toBe(0x04030201);
+    expect(delta.memWrites.map((w) => w.addr)).toEqual([pixelAddr(3, 2), DISPLAY_ADDR + 4]);
+    expect(m.mem.every((b) => b === 0)).toBe(true);
+    undo(m, delta);
+    expect(m.display.every((b) => b === 0)).toBe(true);
+  });
+
+  it("faults on a store that runs off the end of the page", () => {
+    const m = newMachine();
+    expect(() => store(m, emptyDelta(0), DISPLAY_END - 2, 4, 1)).toThrow(MachineFault);
+    expect(() => load(m, DISPLAY_END, 1)).toThrow(MachineFault);
   });
 });
 

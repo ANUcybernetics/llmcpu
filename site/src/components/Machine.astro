@@ -146,13 +146,19 @@ import "../styles/machine.css";
       <h2 id="model-h">The model</h2>
       <p class="cpu-line mono">pc <span id="model-pc"></span> <span id="model-status" class="cpu-status"></span></p>
       <div id="model-regs" class="regs mono"></div>
-      <output id="model-console" class="console mono" aria-label="Model console"></output>
+      <div class="devices">
+        <output id="model-console" class="console mono" aria-label="Model console"></output>
+        <canvas id="model-display" class="display" width="32" height="32" role="img"></canvas>
+      </div>
     </section>
     <section id="silicon-cpu" class="cpu silicon" aria-labelledby="silicon-h" hidden>
       <h2 id="silicon-h">Silicon</h2>
       <p class="cpu-line mono">pc <span id="silicon-pc"></span> <span id="silicon-status" class="cpu-status"></span></p>
       <div id="silicon-regs" class="regs mono"></div>
-      <output id="silicon-console" class="console mono" aria-label="Silicon console"></output>
+      <div class="devices">
+        <output id="silicon-console" class="console mono" aria-label="Silicon console"></output>
+        <canvas id="silicon-display" class="display" width="32" height="32" role="img"></canvas>
+      </div>
       <p id="silicon-expected" class="muted expected"></p>
     </section>
   </div>

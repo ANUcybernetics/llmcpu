@@ -1,0 +1,92 @@
+[
+  {
+    "addr": 64,
+    "line": 6,
+    "file": "main.c"
+  },
+  {
+    "addr": 72,
+    "line": 7,
+    "file": "main.c"
+  },
+  {
+    "addr": 80,
+    "line": 8,
+    "file": "main.c"
+  },
+  {
+    "addr": 88,
+    "line": 9,
+    "file": "main.c"
+  },
+  {
+    "addr": 96,
+    "line": 10,
+    "file": "main.c"
+  },
+  {
+    "addr": 100,
+    "line": 11,
+    "file": "main.c"
+  },
+  {
+    "addr": 104,
+    "line": 12,
+    "file": "main.c"
+  },
+  {
+    "addr": 108,
+    "line": 13,
+    "file": "main.c"
+  },
+  {
+    "addr": 112,
+    "line": 14,
+    "file": "main.c"
+  },
+  {
+    "addr": 116,
+    "line": 13,
+    "file": "main.c"
+  },
+  {
+    "addr": 120,
+    "line": 14,
+    "file": "main.c"
+  },
+  {
+    "addr": 124,
+    "line": 15,
+    "file": "main.c"
+  },
+  {
+    "addr": 144,
+    "line": 21,
+    "file": "main.c"
+  },
+  {
+    "addr": 148,
+    "line": 22,
+    "file": "main.c"
+  },
+  {
+    "addr": 168,
+    "line": 26,
+    "file": "main.c"
+  },
+  {
+    "addr": 188,
+    "line": 59,
+    "file": "llmcpu.h"
+  },
+  {
+    "addr": 204,
+    "line": 18,
+    "file": "main.c"
+  },
+  {
+    "addr": 220,
+    "line": 31,
+    "file": "main.c"
+  }
+]

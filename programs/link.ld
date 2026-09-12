@@ -1,8 +1,8 @@
 /* Linker script for llmcpu: a 16 KiB RV32I machine.
  * RAM is 0x0000..0x3FFF; code starts at 0x0 (_start is the entry point);
  * the stack starts at the top of RAM (_stack_top = 0x4000) and grows down.
- * MMIO (console page/halt) lives above RAM at 0x4000-0x40ff/0x4100 and is not part of
- * this memory region.
+ * MMIO (console page 0x4000-0x40ff, halt 0x4100, display 0x5000-0x53ff) lives
+ * above RAM and is not part of this memory region.
  */
 
 ENTRY(_start)

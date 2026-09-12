@@ -8,6 +8,9 @@ import {
   decode,
   DecodeError,
   describe,
+  DISPLAY_H,
+  DISPLAY_SIZE,
+  DISPLAY_W,
   formatFriendly,
   hex,
   load,
@@ -157,6 +160,8 @@ export function renderTextView(m: MachineState, imageEnd: number): void {
 export interface Highlights {
   regs: Set<number>;
   mem: Set<number>;
+  /** display addresses the last instruction wrote */
+  pixels: Set<number>;
   /** bytes the last instruction consumed */
   read: { from: number; to: number } | null;
 }
@@ -203,6 +208,45 @@ export function renderRegisters(
     cell.innerHTML = `<span class="name">${ABI_NAMES[i]}</span><span class="val">${format === "hex" ? hex(v) : String(v | 0)}</span>`;
     grid.append(cell);
   }
+}
+
+/** The 16 display colours, indexed by the low nibble of a pixel byte (the PICO-8 palette, which reads well at 32 by 32). */
+export const PALETTE = [
+  "#000000",
+  "#1d2b53",
+  "#7e2553",
+  "#008751",
+  "#ab5236",
+  "#5f574f",
+  "#c2c3c7",
+  "#fff1e8",
+  "#ff004d",
+  "#ffa300",
+  "#ffec27",
+  "#00e436",
+  "#29adff",
+  "#83769c",
+  "#ff77a8",
+  "#ffccaa",
+] as const;
+
+/** Paint the display page onto a canvas, one canvas pixel per machine pixel; CSS scales it up crisply. */
+export function renderDisplay(id: string, m: MachineState, changed: Set<number>): void {
+  const canvas = el<HTMLCanvasElement>(id);
+  canvas.width = DISPLAY_W;
+  canvas.height = DISPLAY_H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  for (let i = 0; i < DISPLAY_SIZE; i++) {
+    ctx.fillStyle = PALETTE[m.display[i]! & 0xf]!;
+    ctx.fillRect(i % DISPLAY_W, Math.floor(i / DISPLAY_W), 1, 1);
+  }
+  const lit = m.display.reduce((n, b) => n + ((b & 0xf) === 0 ? 0 : 1), 0);
+  canvas.setAttribute(
+    "aria-label",
+    `${DISPLAY_W} by ${DISPLAY_H} pixel display, ${lit} pixel${lit === 1 ? "" : "s"} lit${changed.size > 0 ? `, ${changed.size} just changed` : ""}`,
+  );
+  canvas.classList.toggle("changed", changed.size > 0);
 }
 
 export function renderCpuStatus(

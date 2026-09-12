@@ -7,6 +7,9 @@ import {
   ABI_NAMES,
   DecodeError,
   type Delta,
+  DISPLAY_ADDR,
+  DISPLAY_SIZE,
+  DISPLAY_W,
   hex,
   type MachineState,
   MachineFault,
@@ -22,7 +25,7 @@ export type SiliconStatus =
   | { kind: "faulted"; reason: string };
 
 export interface Divergence {
-  kind: "pc" | "register" | "memory" | "output" | "halt";
+  kind: "pc" | "register" | "memory" | "display" | "output" | "halt";
   text: string;
 }
 
@@ -52,6 +55,13 @@ export function compareMachines(silicon: MachineState, llm: MachineState, limit 
       out.push({
         kind: "memory",
         text: `byte at ${hex(a, 4)}: silicon ${hex(silicon.mem[a]!, 2)}, model ${hex(llm.mem[a]!, 2)}`,
+      });
+  }
+  for (let i = 0; i < DISPLAY_SIZE && out.length < limit; i++) {
+    if (silicon.display[i] !== llm.display[i])
+      out.push({
+        kind: "display",
+        text: `pixel (${i % DISPLAY_W}, ${Math.floor(i / DISPLAY_W)}) at ${hex(DISPLAY_ADDR + i, 4)}: silicon ${silicon.display[i]}, model ${llm.display[i]}`,
       });
   }
   if (silicon.output !== llm.output)

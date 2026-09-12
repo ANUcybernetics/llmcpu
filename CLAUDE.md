@@ -10,10 +10,11 @@ check commands for both halves and the real-model test recipe; run commands with
 
 ## Constraints
 
-- The machine spec (16 KiB RAM, sp at 0x4000, console at 0x4000, halt at 0x4100,
-  console page 0x4000 to 0x40ff, entry at 0) is shared by `programs/link.ld`,
-  `programs/llmcpu.h`, `programs/start.S` and `site/src/lib/rv32i/machine.ts`.
-  Change all or none.
+- The machine spec (16 KiB RAM, sp at 0x4000, console page 0x4000 to 0x40ff,
+  halt at 0x4100, display 0x5000 to 0x53ff as 32 by 32 bytes, entry at 0) is
+  shared by `programs/link.ld`, `programs/llmcpu.h`, `programs/start.S`,
+  `site/src/lib/rv32i/machine.ts`, the system prompt in `prompt.ts` and the
+  about page. Change all or none.
 - Programs are RV32I only, no M extension, no libc: `*`, `/` and `%` emit calls
   to builtins that do not exist and the Makefile fails the link on any undefined
   symbol. Keep dynamic traces to a few hundred instructions (a browser model

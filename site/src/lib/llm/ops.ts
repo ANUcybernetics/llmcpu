@@ -11,11 +11,14 @@ import {
   DecodeError,
   type Delta,
   describe,
+  DISPLAY_H,
+  DISPLAY_W,
   formatFriendly,
   hex,
   load,
   type MachineState,
   MachineFault,
+  pixelAddr,
   setPc,
   setReg,
   store,
@@ -26,6 +29,7 @@ export const OP_NAMES = [
   "load",
   "store",
   "print",
+  "pixel",
   "get_reg",
   "set_reg",
   "alu",
@@ -85,6 +89,9 @@ export const OpSchema = z.object({
   a: Int.optional(),
   b: Int.optional(),
   text: z.string().optional(),
+  x: Int.optional(),
+  y: Int.optional(),
+  colour: Int.optional(),
 });
 export type Op = z.infer<typeof OpSchema>;
 
@@ -108,6 +115,7 @@ const OP_SHAPES: Record<OpName, Record<string, object>> = {
   load: { addr: INT, size: SIZE },
   store: { addr: INT, size: SIZE, value: INT },
   print: { text: { type: "string", maxLength: 80 } },
+  pixel: { x: INT, y: INT, colour: INT },
   get_reg: { reg: REG },
   set_reg: { reg: REG, value: INT },
   alu: { fn: { type: "string", enum: [...ALU_OPS] }, a: INT, b: INT },
@@ -271,6 +279,17 @@ export function applyOp(ctx: OpContext, op: Op): OpResult {
         // the same as storing each byte to the console page, one op instead of many
         const text = need(op.text, "text", op.op);
         for (const ch of text) store(machine, delta, CONSOLE_ADDR, 1, ch.charCodeAt(0) & 0xff);
+        return done("");
+      }
+      case "pixel": {
+        // the same as a byte store to the display page, addressed by column and row
+        const x = need(op.x, "x", op.op);
+        const y = need(op.y, "y", op.op);
+        if (x < 0 || x >= DISPLAY_W || y < 0 || y >= DISPLAY_H)
+          throw new MachineFault(
+            `pixel (${x}, ${y}) is off the display; x and y run from 0 to ${DISPLAY_W - 1}`,
+          );
+        store(machine, delta, pixelAddr(x, y), 1, need(op.colour, "colour", op.op) & 0xff);
         return done("");
       }
       case "note":

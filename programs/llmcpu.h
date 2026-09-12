@@ -1,8 +1,11 @@
 /* llmcpu.h -- MMIO helpers for programs running on the llmcpu RV32I machine.
  *
- * MMIO map (word-aligned stores only):
- *   0x00004000  CONSOLE  store a word -> low byte is written as a character
- *   0x00004004  HALT     store a word -> machine halts, value is exit code
+ * MMIO map:
+ *   0x00004000-0x40ff  CONSOLE  a store prints the stored bytes, lowest first,
+ *                               up to the first zero byte
+ *   0x00004100         HALT     store a word -> machine halts, value is exit code
+ *   0x00005000-0x53ff  DISPLAY  32 x 32 pixels, one byte each, row-major; the
+ *                               low four bits of a byte pick a palette colour
  *
  * No *, /, or % on ints: this target has no M extension and no
  * compiler-rt, so those operators would emit calls to __mulsi3 /
@@ -13,7 +16,10 @@
 #define LLMCPU_H
 
 #define LLMCPU_CONSOLE_ADDR 0x00004000u
-#define LLMCPU_HALT_ADDR 0x00004004u
+#define LLMCPU_HALT_ADDR 0x00004100u
+#define LLMCPU_DISPLAY_ADDR 0x00005000u
+#define LLMCPU_DISPLAY_W 32
+#define LLMCPU_DISPLAY_H 32
 
 static inline void putc_(char c) {
     volatile unsigned int *console = (volatile unsigned int *)LLMCPU_CONSOLE_ADDR;
@@ -45,6 +51,12 @@ static inline void put_uint(unsigned int n) {
             started = 1;
         }
     }
+}
+
+/* Light the pixel at column x, row y (0..31 each) in palette colour c (0..15). */
+static inline void plot(int x, int y, unsigned char c) {
+    volatile unsigned char *display = (volatile unsigned char *)LLMCPU_DISPLAY_ADDR;
+    display[(y << 5) + x] = c;
 }
 
 static inline void halt(unsigned int code) {

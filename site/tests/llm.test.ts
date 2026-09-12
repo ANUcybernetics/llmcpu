@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  type Backend,
   consumedRange,
   DEFAULT_KNOBS,
   effectsSummary,
@@ -17,7 +18,20 @@ import {
 } from "../src/lib/llm";
 import { cloneMachine, imageFromBytes, imageFromText, machineFromImage } from "../src/lib/rv32i";
 
+/** A backend that answers each JSON round with the next canned reply, and every reasoning request with a sentence. */
+const scripted = (replies: object[]): Backend => {
+  let i = 0;
+  return {
+    id: "scripted",
+    complete: (_messages, options) =>
+      Promise.resolve({
+        text: options.jsonSchema ? JSON.stringify(replies[i++] ?? replies.at(-1)) : "Thinking.",
+      }),
+  };
+};
+
 const JUMPED_TO = /jumped to 0x[0-9a-f]{4}/;
+const OFF_DISPLAY = /off the display/;
 const DIVERGENCE_TEXT = /silicon 0x[0-9a-f]{8}, model 0x[0-9a-f]{8}/;
 
 const program = (name: string) => {
@@ -364,5 +378,39 @@ describe("print op", () => {
         (s) => s.properties.op.const === "print",
       ),
     ).toBe(true);
+  });
+});
+
+describe("pixel op", () => {
+  it("lights a pixel by column and row, counts as an effect, and refuses to draw off the display", async () => {
+    const m = machineFromImage(imageFromText("abc"));
+    const cpu = new LlmCpu(
+      m,
+      scripted([
+        {
+          comment: "draw",
+          ops: [
+            { op: "pixel", x: 31, y: 0, colour: 8 },
+            { op: "set_pc", addr: 3 },
+          ],
+        },
+        { comment: "miss", ops: [{ op: "pixel", x: 32, y: 0, colour: 8 }] },
+        {
+          comment: "ok",
+          ops: [
+            { op: "print", text: "x" },
+            { op: "set_pc", addr: 6 },
+          ],
+        },
+      ]),
+      DEFAULT_KNOBS,
+    );
+    const first = await cpu.stepInstruction();
+    expect(m.display[31]).toBe(8);
+    expect(effectsSummary(first)).toContain("drew 1 pixel");
+    expect(runMetrics(cpu.steps, m)).toMatchObject({ plotted: 1, touched: 0 });
+    const second = await cpu.stepInstruction();
+    expect(second.rounds[0]!.results[0]!.result).toMatch(OFF_DISPLAY);
+    expect(second.committed).toBe(true);
   });
 });

@@ -2,7 +2,8 @@
 
 The corpus of tiny bare-metal RV32I programs that llmcpu runs. Each subdirectory
 is one program: `main.c` plus `program.json` (title, blurb, exact expected
-console output, display order). The site itself never invokes a cross-compiler
+console output, display order, and optionally the number of pixels it lights
+and an instruction budget above the default 500). The site itself never invokes a cross-compiler
 --- everything under here is either committed source or a committed build
 artefact, checked in so the site build only ever reads files.
 

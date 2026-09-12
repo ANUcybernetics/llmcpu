@@ -416,6 +416,27 @@
     color: var(--diverge);
   }
 
+  .devices {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    align-items: start;
+  }
+
+  .display {
+    inline-size: 8rem;
+    block-size: 8rem;
+    image-rendering: pixelated;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #000;
+  }
+
+  .display.changed {
+    outline: 2px solid var(--track);
+    outline-offset: 2px;
+  }
+
   .regs {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
