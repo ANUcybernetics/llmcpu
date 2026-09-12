@@ -2,7 +2,7 @@
 // scratch; the panes are small enough (a few hundred bytes, 32 registers) that
 // diffing would be more code than it saves.
 
-import type { Comparison, LlmStep } from "../lib/llm";
+import { type Comparison, consumedRange, effectsSummary, type LlmStep } from "../lib/llm";
 import {
   ABI_NAMES,
   decode,
@@ -136,21 +136,54 @@ export function renderMemory(m: MachineState, imageEnd: number, bands: Bands): v
   }
 }
 
+/** The whole image as text, one span per byte so the reading cursor can be painted onto it. */
+export function renderTextView(m: MachineState, imageEnd: number): void {
+  const pre = el<HTMLPreElement>("text");
+  pre.replaceChildren();
+  const frag = document.createDocumentFragment();
+  for (let a = 0; a < Math.min(imageEnd, RAM_SIZE); a++) {
+    const b = m.mem[a]!;
+    const span = document.createElement("span");
+    span.dataset.addr = String(a);
+    span.textContent =
+      b === 0x0a ? "↵\n" : b === 0x20 ? " " : b >= 0x21 && b < 0x7f ? String.fromCharCode(b) : "·";
+    if (b < 0x20 || b >= 0x7f) span.className = b === 0x0a ? "nl" : "raw";
+    frag.append(span);
+  }
+  pre.append(frag);
+}
+
 /** Repaint the pc markers and last-changed highlights without rebuilding the panes. */
+export interface Highlights {
+  regs: Set<number>;
+  mem: Set<number>;
+  /** bytes the last instruction consumed */
+  read: { from: number; to: number } | null;
+}
+
 export function paintMarkers(
   model: MachineState,
   silicon: MachineState | null,
-  changed: { regs: Set<number>; mem: Set<number> },
+  marks: Highlights,
 ): void {
-  for (const node of document.querySelectorAll<HTMLElement>("#asm li, #memory .byte")) {
+  for (const node of document.querySelectorAll<HTMLElement>("#asm li, #memory .byte, #text span")) {
     const a = Number(node.dataset.addr);
     const isAsm = node.tagName === "LI";
-    const covers = (pc: number): boolean => (isAsm ? a === pc : a >= pc && a < pc + 4);
+    const isText = node.parentElement?.id === "text";
+    const width = isText ? 1 : 4;
+    const covers = (pc: number): boolean => (isAsm ? a === pc : a >= pc && a < pc + width);
     node.classList.toggle("pc-model", covers(model.pc));
     node.classList.toggle("pc-silicon", silicon !== null && covers(silicon.pc));
-    if (!isAsm) node.classList.toggle("changed", changed.mem.has(a));
+    if (!isAsm) {
+      node.classList.toggle("changed", marks.mem.has(a));
+      node.classList.toggle(
+        "read",
+        marks.read !== null && a >= marks.read.from && a < marks.read.to,
+      );
+    }
   }
   document.querySelector("#asm li.pc-model")?.scrollIntoView({ block: "nearest" });
+  document.querySelector("#text .pc-model")?.scrollIntoView({ block: "nearest" });
 }
 
 export function renderRegisters(
@@ -202,29 +235,56 @@ export function siliconReading(
   }
 }
 
-export function appendTraceRow(step: LlmStep, cmp: Comparison, word: number, bands: Bands): void {
+const byteText = (m: MachineState, from: number, to: number): string =>
+  Array.from({ length: to - from }, (_, i) => {
+    const b = m.mem[from + i]!;
+    return b === 0x0a ? "↵" : b >= 0x20 && b < 0x7f ? String.fromCharCode(b) : "·";
+  }).join("");
+
+export function appendTraceRow(
+  step: LlmStep,
+  cmp: Comparison | null,
+  m: MachineState,
+  word: number,
+  bands: Bands,
+): void {
   const list = el<HTMLOListElement>("trace");
   const li = document.createElement("li");
   li.dataset.index = String(step.index);
-  const reading = siliconReading(word, step.pcBefore);
   attrs(li, bands.lineOfAddr(step.pcBefore), bands);
 
-  let verdictClass = "agree";
-  let verdict = "silicon agrees";
-  if (cmp.statusBefore.kind !== "running") {
-    verdictClass = "silicon-off";
-    verdict = cmp.statusBefore.kind === "halted" ? "silicon had halted" : "silicon had stopped";
-  } else if (cmp.status.kind === "faulted") {
-    verdictClass = "silicon-off";
-    verdict = `silicon stops here: ${cmp.status.reason}`;
-  } else if (cmp.divergences.length > 0) {
-    verdictClass = "diverged";
-    verdict = cmp.divergences.map((d) => d.text).join("; ");
+  const range = consumedRange(step);
+  const took = range
+    ? `${Array.from({ length: Math.min(range.to - range.from, 12) }, (_, i) => byte(m.mem[range.from + i]!)).join(" ")}${range.to - range.from > 12 ? " …" : ""}`
+    : byte(word & 0xff) +
+      " " +
+      byte((word >>> 8) & 0xff) +
+      " " +
+      byte((word >>> 16) & 0xff) +
+      " " +
+      byte((word >>> 24) & 0xff);
+  const tookText = range
+    ? byteText(m, range.from, Math.min(range.to, range.from + 24))
+    : byteText(m, step.pcBefore, step.pcBefore + 4);
+  const reading = siliconReading(word, step.pcBefore);
+
+  let verdictClass = "";
+  let verdict = "";
+  if (cmp) {
+    verdictClass = "agree";
+    verdict = "silicon agrees";
+    if (cmp.statusBefore.kind !== "running") {
+      verdictClass = "silicon-off";
+      verdict = cmp.statusBefore.kind === "halted" ? "silicon had halted" : "silicon had stopped";
+    } else if (cmp.status.kind === "faulted") {
+      verdictClass = "silicon-off";
+      verdict = `silicon stops here: ${cmp.status.reason}`;
+    } else if (cmp.divergences.length > 0) {
+      verdictClass = "diverged";
+      verdict = cmp.divergences.map((d) => d.text).join("; ");
+    }
   }
-  if (!step.committed) {
-    verdictClass = "diverged";
-    verdict = `the model never moved pc (${verdict})`;
-  }
+  if (!step.committed) verdictClass = "stuck";
   li.className = verdictClass;
 
   const rounds = step.rounds
@@ -251,9 +311,10 @@ export function appendTraceRow(step: LlmStep, cmp: Comparison, word: number, ban
   li.innerHTML = `
     <span class="idx">${step.index}</span>
     <span class="pc">${hex(step.pcBefore, 4)}</span>
-    <span class="reading${reading.valid ? "" : " invalid"}" title="${escape(reading.description)}">${escape(reading.text)}</span>
+    <span class="took" title="${escape(took)}"><span class="took-text">${escape(tookText)}</span><span class="took-bytes muted">${escape(took)}</span></span>
     <p class="comment">${escape(step.comment)}</p>
-    <span class="verdict">${escape(verdict)}</span>
+    <span class="effects">${escape(effectsSummary(step))}</span>
+    ${cmp ? `<span class="reading${reading.valid ? "" : " invalid"}">silicon reads: ${escape(reading.text)}</span><span class="verdict">${escape(verdict)}</span>` : ""}
     <details class="detail">
       <summary>what the model did (${step.rounds.length} ${step.rounds.length === 1 ? "round" : "rounds"}, ${(step.ms / 1000).toFixed(1)} s)</summary>
       <ol class="rounds">${rounds}</ol>

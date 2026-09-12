@@ -21,7 +21,7 @@ _start:
 
     call    main
 
-    li      a1, 0x4004
+    li      a1, 0x4100
     sw      a0, 0(a1)
 
 3:

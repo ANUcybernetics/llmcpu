@@ -1,0 +1,82 @@
+// Growth-side measures of a run: not "how far from silicon" but what the
+// model read, wrote and printed. Pure functions over the trace so the page
+// can recompute them after step-back.
+
+import { ABI_NAMES, hex, type MachineState } from "../rv32i";
+import type { LlmStep } from "./runner";
+
+export interface ByteRange {
+  /** inclusive */
+  from: number;
+  /** exclusive */
+  to: number;
+}
+
+/** The bytes an instruction consumed: a forward move of up to `max` bytes; anything else is a jump. */
+export function consumedRange(
+  step: Pick<LlmStep, "pcBefore" | "pcAfter">,
+  max = 64,
+): ByteRange | null {
+  const n = step.pcAfter - step.pcBefore;
+  return n > 0 && n <= max ? { from: step.pcBefore, to: step.pcAfter } : null;
+}
+
+export interface RunMetrics {
+  steps: number;
+  bytesRead: number;
+  jumps: number;
+  printed: number;
+  /** distinct memory bytes the model wrote */
+  touched: number;
+  registersWritten: number;
+  halted: number | null;
+}
+
+export function runMetrics(steps: LlmStep[], machine: MachineState): RunMetrics {
+  const touched = new Set<number>();
+  const regs = new Set<number>();
+  let bytesRead = 0;
+  let jumps = 0;
+  for (const s of steps) {
+    const range = consumedRange(s);
+    if (range) bytesRead += range.to - range.from;
+    else if (s.committed) jumps++;
+    for (const w of s.delta.memWrites)
+      for (let i = 0; i < w.after.length; i++) touched.add(w.addr + i);
+    for (const w of s.delta.regWrites) regs.add(w.reg);
+  }
+  return {
+    steps: steps.length,
+    bytesRead,
+    jumps,
+    printed: machine.output.length,
+    touched: touched.size,
+    registersWritten: regs.size,
+    halted: machine.halted,
+  };
+}
+
+const regName = (i: number): string => ABI_NAMES[i] ?? `x${i}`;
+
+/** One short clause per visible effect of a step, for the trace row. */
+export function effectsSummary(step: LlmStep): string {
+  const parts: string[] = [];
+  if (step.delta.output) parts.push(`printed ${JSON.stringify(step.delta.output)}`);
+  const regs = [...new Set(step.delta.regWrites.map((w) => w.reg))];
+  if (regs.length > 0) parts.push(`set ${regs.map(regName).join(", ")}`);
+  const bytes = step.delta.memWrites.reduce((n, w) => n + w.after.length, 0);
+  if (bytes > 0)
+    parts.push(
+      `wrote ${bytes} byte${bytes === 1 ? "" : "s"} at ${hex(step.delta.memWrites[0]!.addr, 4)}`,
+    );
+  if (step.delta.halted !== null) parts.push(`halted with exit code ${step.delta.halted}`);
+  const range = consumedRange(step);
+  if (!range && step.committed)
+    parts.push(
+      step.pcAfter === step.pcBefore
+        ? "jumped to itself, so pc did not move"
+        : `jumped to ${hex(step.pcAfter, 4)}`,
+    );
+  if (!step.committed) parts.push("did not move pc");
+  return parts.join("; ") || "no visible effect";
+}

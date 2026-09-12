@@ -5,15 +5,16 @@ import Base from "../layouts/Base.astro";
 
 <Base
   title="llmcpu"
-  description="A language model wired up as the control unit of a tiny computer, running real binaries and anything else you feed it, in your browser."
+  description="A computer whose CPU is a language model: it runs poems, photographs, noise and real programs alike, in your browser."
 >
   <div class="intro">
-    <h1>A language model, pretending to be a CPU</h1>
+    <h1>A computer whose CPU is a language model</h1>
     <p>
-      The bytes of a real program sit in memory. A small language model, running on your graphics card, has to read them
-      four at a time, work out what each one means, and carry it out with a handful of tools. Beside it, an ordinary
-      silicon processor runs the same bytes so you can see where the model gets it wrong. Then feed it something that
-      was never a program at all, and watch it carry on anyway.
+      Give it anything: a poem, a photograph, random noise, or a real program. A small language model, running on your
+      graphics card, reads the bytes a few at a time, decides what each instruction means, and carries it out on a
+      little machine with memory, registers and a console. There is no wrong reading. Watch what it makes of them, and
+      what the program turns out to do. If you hand it a real RISC-V program you can also run a silicon processor
+      alongside and see where the two part ways.
     </p>
   </div>
   <Machine />

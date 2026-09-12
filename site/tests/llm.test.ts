@@ -2,18 +2,22 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  consumedRange,
   DEFAULT_KNOBS,
+  effectsSummary,
   Lockstep,
   LlmCpu,
   mockBackend,
   OpSchema,
   parseStep,
+  runMetrics,
   stepJsonSchema,
   systemPrompt,
   userPrompt,
 } from "../src/lib/llm";
 import { cloneMachine, imageFromBytes, imageFromText, machineFromImage } from "../src/lib/rv32i";
 
+const JUMPED_TO = /jumped to 0x[0-9a-f]{4}/;
 const DIVERGENCE_TEXT = /silicon 0x[0-9a-f]{8}, model 0x[0-9a-f]{8}/;
 
 const program = (name: string) => {
@@ -56,13 +60,29 @@ describe("op parsing", () => {
 });
 
 describe("prompts", () => {
+  it("reads freely by default: no width, no manual, no wrong answers", () => {
+    const free = systemPrompt(DEFAULT_KNOBS);
+    expect(free).toContain("a language only you know");
+    expect(free).not.toContain("exactly 4 bytes");
+    expect(free).not.toContain("RV32I QUICK REFERENCE");
+    expect(free).not.toContain("not a valid instruction");
+    const m = program("hello");
+    const echo = userPrompt(m, DEFAULT_KNOBS, "", [], [], null);
+    expect(echo).toContain("next 16 bytes from pc:");
+    expect(echo).toContain("the same bytes as text:");
+    expect(echo).toContain("first byte after the ones this instruction used");
+    expect(echo).not.toContain("branches or jumps");
+  });
+
   it("shape the system prompt by knob", () => {
-    expect(systemPrompt({ ...DEFAULT_KNOBS, decode: "blind" })).not.toContain(
+    expect(systemPrompt({ ...DEFAULT_KNOBS, reading: "blind" })).not.toContain(
       "RV32I QUICK REFERENCE",
     );
-    expect(systemPrompt({ ...DEFAULT_KNOBS, decode: "manual" })).toContain("RV32I QUICK REFERENCE");
-    expect(systemPrompt({ ...DEFAULT_KNOBS, decode: "manual" })).not.toContain('"op":"disasm"');
-    expect(systemPrompt({ ...DEFAULT_KNOBS, decode: "disasm" })).toContain('"op":"disasm"');
+    expect(systemPrompt({ ...DEFAULT_KNOBS, reading: "manual" })).toContain(
+      "RV32I QUICK REFERENCE",
+    );
+    expect(systemPrompt({ ...DEFAULT_KNOBS, reading: "manual" })).not.toContain('"op":"disasm"');
+    expect(systemPrompt({ ...DEFAULT_KNOBS, reading: "disasm" })).toContain('"op":"disasm"');
   });
 
   it("echo the machine state at the requested depth", () => {
@@ -188,7 +208,6 @@ describe("webllm quirks", () => {
 
 describe("runner guards", () => {
   it("challenges a set_pc that leaves pc where it is, then accepts a repeat", async () => {
-    const llm = program("hello");
     let calls = 0;
     const stubborn = {
       id: "stubborn",
@@ -199,20 +218,29 @@ describe("runner guards", () => {
         });
       },
     };
-    const cpu = new LlmCpu(llm, stubborn, DEFAULT_KNOBS);
+    const llm = program("hello");
+    const cpu = new LlmCpu(llm, stubborn, { ...DEFAULT_KNOBS, reading: "manual" });
     const step = await cpu.stepInstruction();
     expect(calls).toBe(2);
     expect(step.committed).toBe(true);
     expect(step.rounds[0]!.results[0]!.error).toBe(true);
     expect(step.rounds[0]!.results[0]!.result).toContain("must move pc");
     expect(llm.pc).toBe(0);
+    // in the free reading a jump-to-self is never accepted: the step ends uncommitted
+    calls = 0;
+    const stuck = await new LlmCpu(program("hello"), stubborn, DEFAULT_KNOBS).stepInstruction();
+    expect(calls).toBe(6);
+    expect(stuck.committed).toBe(false);
+    expect(stuck.rounds.every((r) => r.results[0]!.result.includes("0x00000001 or later"))).toBe(
+      true,
+    );
   });
 
   it("hands the model the decoded instruction on the top rung of the decode ladder", () => {
     const m = program("hello");
-    const text = userPrompt(m, { ...DEFAULT_KNOBS, decode: "disasm" }, "", [], [], null);
+    const text = userPrompt(m, { ...DEFAULT_KNOBS, reading: "disasm" }, "", [], [], null);
     expect(text).toContain("decoded by the hardware decoder: auipc sp, 0x4000");
-    expect(userPrompt(m, { ...DEFAULT_KNOBS, decode: "manual" }, "", [], [], null)).not.toContain(
+    expect(userPrompt(m, { ...DEFAULT_KNOBS, reading: "manual" }, "", [], [], null)).not.toContain(
       "hardware decoder",
     );
   });
@@ -225,5 +253,88 @@ describe("grammar numbers", () => {
     )!;
     expect(JSON.stringify(setPc.properties)).toContain("0x[0-9a-fA-F]+");
     expect(OpSchema.parse({ op: "set_pc", addr: "0x00000004" })).toMatchObject({ addr: 4 });
+  });
+});
+
+describe("reading measures", () => {
+  it("counts consumed bytes, jumps, prints and writes", async () => {
+    const llm = program("hello");
+    const cpu = new LlmCpu(
+      llm,
+      mockBackend(() => llm),
+      DEFAULT_KNOBS,
+    );
+    while (llm.halted === null) await cpu.stepInstruction();
+    const m = runMetrics(cpu.steps, llm);
+    expect(m.steps).toBe(50);
+    expect(m.printed).toBe(6);
+    expect(m.halted).toBe(0);
+    expect(m.jumps).toBeGreaterThan(0);
+    expect(m.bytesRead).toBeGreaterThan(100);
+    expect(m.registersWritten).toBeGreaterThan(3);
+    expect(consumedRange({ pcBefore: 0x10, pcAfter: 0x14 })).toEqual({ from: 0x10, to: 0x14 });
+    expect(consumedRange({ pcBefore: 0x10, pcAfter: 0x08 })).toBeNull();
+    expect(consumedRange({ pcBefore: 0x10, pcAfter: 0x1000 })).toBeNull();
+    const printing = cpu.steps.find((s) => s.delta.output)!;
+    expect(effectsSummary(printing)).toContain('printed "h"');
+    const jump = cpu.steps.find((s) => consumedRange(s) === null)!;
+    expect(effectsSummary(jump)).toMatch(JUMPED_TO);
+  });
+});
+
+describe("free reading guards", () => {
+  it("asks once for an effect when an instruction only moves pc, then accepts", async () => {
+    const llm = machineFromImage(imageFromText("Because I could not stop for Death"));
+    let calls = 0;
+    const lazy = {
+      id: "lazy",
+      complete: () => {
+        calls++;
+        return Promise.resolve({
+          text: JSON.stringify({ comment: "skip a word", ops: [{ op: "set_pc", addr: 8 }] }),
+        });
+      },
+    };
+    const cpu = new LlmCpu(llm, lazy, DEFAULT_KNOBS);
+    const step = await cpu.stepInstruction();
+    expect(calls).toBe(2);
+    expect(step.committed).toBe(true);
+    expect(step.rounds[0]!.results[0]!.result).toContain("has not done anything yet");
+    expect(llm.pc).toBe(8);
+    // an instruction with an effect passes first time
+    const eager = {
+      id: "eager",
+      complete: () =>
+        Promise.resolve({
+          text: JSON.stringify({
+            comment: "print the first letter",
+            ops: [
+              { op: "store", addr: 0x4000, size: 4, value: 66 },
+              { op: "set_pc", addr: 16 },
+            ],
+          }),
+        }),
+    };
+    const cpu2 = new LlmCpu(llm, eager, DEFAULT_KNOBS);
+    const step2 = await cpu2.stepInstruction();
+    expect(step2.rounds).toHaveLength(1);
+    expect(llm.output).toBe("B");
+    expect(effectsSummary(step2)).toBe('printed "B"');
+  });
+
+  it("does not demand effects in the RISC-V readings, where a nop is legal", async () => {
+    const llm = program("hello");
+    const nop = {
+      id: "nop",
+      complete: () =>
+        Promise.resolve({
+          text: JSON.stringify({ comment: "nop", ops: [{ op: "set_pc", addr: 4 }] }),
+        }),
+    };
+    const step = await new LlmCpu(llm, nop, {
+      ...DEFAULT_KNOBS,
+      reading: "manual",
+    }).stepInstruction();
+    expect(step.rounds).toHaveLength(1);
   });
 });

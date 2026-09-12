@@ -5,11 +5,13 @@
 
 import {
   ABI_NAMES,
+  cloneMachine,
+  CONSOLE_ADDR,
   decode,
   DecodeError,
   describe,
   execute,
-  cloneMachine,
+  HALT_ADDR,
   type MachineState,
 } from "../rv32i";
 import type { Backend, ChatMessage, Completion, CompletionOptions } from "./backend";
@@ -62,14 +64,14 @@ export function oracleOps(machine: MachineState, options: MockOptions, index: nu
       ? [
           {
             op: "store" as const,
-            addr: 0x4000,
+            addr: CONSOLE_ADDR,
             size: 4 as const,
             value: delta.output.charCodeAt(0),
           },
         ]
       : []),
     ...(delta.halted !== null
-      ? [{ op: "store" as const, addr: 0x4004, size: 4 as const, value: delta.halted }]
+      ? [{ op: "store" as const, addr: HALT_ADDR, size: 4 as const, value: delta.halted }]
       : []),
     { op: "set_pc", addr: delta.pcAfter },
   ];

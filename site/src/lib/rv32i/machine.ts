@@ -5,8 +5,10 @@
 
 export const RAM_SIZE = 0x4000;
 export const STACK_TOP = 0x4000;
+/** the console is a 256-byte page: a store anywhere in it prints the stored bytes, lowest first, up to the first zero */
 export const CONSOLE_ADDR = 0x4000;
-export const HALT_ADDR = 0x4004;
+export const CONSOLE_END = 0x4100;
+export const HALT_ADDR = 0x4100;
 
 export interface RegWrite {
   reg: number;
@@ -76,7 +78,7 @@ const inRam = (addr: number, size: number): boolean => addr >= 0 && addr + size 
 /** Read `size` bytes little-endian as an unsigned value. Reads of the MMIO ports return 0. */
 export function load(m: MachineState, addr: number, size: 1 | 2 | 4): number {
   addr >>>= 0;
-  if (addr === CONSOLE_ADDR || addr === HALT_ADDR) return 0;
+  if ((addr >= CONSOLE_ADDR && addr < CONSOLE_END) || addr === HALT_ADDR) return 0;
   if (!inRam(addr, size))
     throw new MachineFault(`load of ${size} byte(s) at 0x${addr.toString(16)} is outside memory`);
   let value = 0;
@@ -93,10 +95,15 @@ export function store(
   value: number,
 ): void {
   addr >>>= 0;
-  if (addr === CONSOLE_ADDR) {
-    const ch = String.fromCharCode(value & 0xff);
-    m.output += ch;
-    delta.output += ch;
+  if (addr >= CONSOLE_ADDR && addr < CONSOLE_END) {
+    let text = "";
+    for (let i = 0; i < size; i++) {
+      const b = (value >>> (8 * i)) & 0xff;
+      if (b === 0) break;
+      text += String.fromCharCode(b);
+    }
+    m.output += text;
+    delta.output += text;
     return;
   }
   if (addr === HALT_ADDR) {

@@ -13,18 +13,25 @@ import Base from "../layouts/Base.astro";
       program counter. Moving the program counter is what finishes an instruction.
     </p>
     <p>
-      Nothing in that arrangement requires the bytes to be a program. A real processor stops dead at the first word it
-      cannot decode. The model has no such reflex: it is asked what the bytes most plausibly mean and told never to give
-      up, so it will run a poem, a JPEG, or a binary compiled for a different architecture entirely, one confident
-      guess at a time. That is the experiment. The silicon track is there so that, when the bytes <em>are</em> a
-      program, you can see exactly how far the model gets before it strays.
+      A silicon processor has one fixed idea of what bytes mean, and stops dead at the first word that does not fit it.
+      The model has no such idea unless you give it one. By default it is told only that the bytes are a program in a
+      language it alone knows: read as many as make an instruction, decide what it means, act, be consistent. So a poem
+      is a program. So is a photograph, or noise. The question the site asks is not whether the model gets it right,
+      because there is no right, but what it makes of what it is given: how it chunks the bytes, what it decides they
+      do, and what the program turns out to print.
+    </p>
+    <p>
+      Real RISC-V programs are in the gallery too, as one kind of input among the others. For those you can ask for a
+      second, silicon processor to run the same bytes alongside, and see exactly where the model's reading parts from
+      the official one. That comparison is a good way to learn what a processor actually does, but it is the second
+      act, not the point.
     </p>
 
     <h2>The machine</h2>
     <p>
       It is a 32-bit RISC-V machine with the base integer instruction set only (RV32I, about forty instructions) and
       16 KiB of memory. Storing a word to address <code>0x4000</code> prints its low byte; storing to
-      <code>0x4004</code> halts. The curated programs are small C programs compiled with clang for exactly this
+      <code>0x4100</code> halts. The curated programs are small C programs compiled with clang for exactly this
       machine, with no standard library; their sources, binaries and line tables are in the
       <a href="https://github.com/ANUcybernetics/llmcpu/tree/main/programs">programs directory</a>. The colours running
       through the source, assembly, memory and trace panes follow the compiler's own line table, the same trick
@@ -41,17 +48,18 @@ import Base from "../layouts/Base.astro";
       the trace.
     </p>
     <p>
-      The perfect oracle in the same dropdown is not a language model. It is the silicon processor answering in the
-      model's place, so the two tracks always agree. It exists so that the machinery can be seen working on a device
-      without WebGPU.
+      The perfect oracle in the same dropdown is not a language model. It is a silicon RISC-V processor answering in the
+      model's place: it reads RISC-V and nothing else, so on a poem it shrugs and steps over every four bytes. It exists
+      so that the machinery can be seen working on a device without WebGPU.
     </p>
 
     <h2>The knobs</h2>
     <ul>
       <li>
-        <strong>Decode help</strong> controls how much the model is told about the instruction encoding: nothing at
-        all, a compact manual, or the manual plus a tool that decodes a word for it. With no help, the model is guessing
-        what raw numbers mean; with the disassembler, it only has to carry out what it is told.
+        <strong>How to read the bytes</strong> is the main one. The default tells the model nothing about what an
+        instruction is: it chooses how many bytes to take and what they mean. The other three settings tell it the bytes
+        are RISC-V, with increasing help: raw words only, a compact manual, or the manual plus each instruction already
+        decoded for it. They form a ladder from invention to execution.
       </li>
       <li>
         <strong>State shown each step</strong> sets how much of the machine the model sees without asking: just the
@@ -77,8 +85,8 @@ import Base from "../layouts/Base.astro";
       <a href="https://arxiv.org/abs/2507.08800">predicts an operating system's screen</a>, and benchmarks measuring how
       well language models
       <a href="https://arxiv.org/abs/2511.14777">execute a state machine over long horizons</a> (badly, unless the state
-      is externalised at every step, which is what the tools here do). What we have not seen is the two machines racing
-      side by side, or a control unit that keeps going on bytes that were never a program.
+      is externalised at every step, which is what the tools here do). What we have not seen is a control unit asked to read bytes
+      that were never a program as though they were one, with the reading laid out beside the bytes.
     </p>
 
     <h2>Who</h2>

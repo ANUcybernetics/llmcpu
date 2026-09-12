@@ -60,6 +60,7 @@ export class LlmCpu {
     let comment = "";
     let committed = false;
     let challengedStay = false;
+    let challengedNoop = false;
 
     if (this.knobs.thinking !== "off") {
       const messages: ChatMessage[] = [
@@ -94,7 +95,7 @@ export class LlmCpu {
       ];
       const t0 = now();
       const reply = await this.backend.complete(messages, {
-        jsonSchema: stepJsonSchema(this.knobs.decode === "disasm"),
+        jsonSchema: stepJsonSchema(this.knobs.reading === "disasm"),
         maxTokens: 900,
         temperature: 0.2,
       });
@@ -105,11 +106,43 @@ export class LlmCpu {
         const ctx = {
           machine: m,
           delta,
-          disasmEnabled: this.knobs.decode === "disasm",
+          disasmEnabled: this.knobs.reading === "disasm",
           note: this.note,
         };
         for (const op of parsed.value.ops) {
-          if (op.op === "set_pc" && (op.addr ?? -1) >>> 0 === delta.pcBefore && !challengedStay) {
+          const didSomething =
+            delta.regWrites.length > 0 ||
+            delta.memWrites.length > 0 ||
+            delta.output.length > 0 ||
+            delta.halted !== null;
+          const movesOn =
+            op.op === "set_pc" &&
+            op.addr !== undefined &&
+            op.addr >>> 0 > delta.pcBefore &&
+            op.addr >>> (0 - delta.pcBefore) <= 64;
+          if (this.knobs.reading === "free" && movesOn && !didSomething && !challengedNoop) {
+            // in the free reading an instruction that only advances pc is a way of doing nothing; ask once for an effect
+            challengedNoop = true;
+            results.push({
+              op,
+              result: `this instruction has not done anything yet: every instruction must print, change a register, write memory or jump somewhere else before moving on. Add those ops, then set_pc`,
+              isRead: true,
+              error: true,
+            });
+            break;
+          }
+          const stays = op.op === "set_pc" && (op.addr ?? -1) >>> 0 === delta.pcBefore;
+          if (stays && this.knobs.reading === "free") {
+            // in a language the model invents, an instruction that jumps to itself is just a hang
+            results.push({
+              op,
+              result: `pc is already ${hex(delta.pcBefore)}; an instruction must move pc. Set it to the first byte after the bytes this instruction used (${hex(delta.pcBefore + 1)} or later), or to wherever it jumps`,
+              isRead: true,
+              error: true,
+            });
+            break;
+          }
+          if (stays && !challengedStay) {
             // a jump-to-self is legal but rare; a model that leaves pc alone has usually skipped the instruction
             challengedStay = true;
             results.push({

@@ -221,6 +221,36 @@
     font-style: italic;
   }
 
+  .textview {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    max-block-size: 24rem;
+    overflow: auto;
+    font-size: var(--step-1);
+    line-height: 1.5rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .textview .nl,
+  .textview .raw {
+    color: var(--muted);
+  }
+
+  .textview span.pc-model {
+    box-shadow: inset 0 -2px 0 var(--model);
+    font-weight: 600;
+  }
+
+  .textview span.read,
+  .memory .byte.read {
+    background: var(--model-soft);
+  }
+
+  .compare {
+    align-self: center;
+  }
+
   /* line bands shared by source, assembly, memory and trace */
 
   [data-line] {
@@ -349,6 +379,10 @@
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
   }
 
+  .cpus.solo {
+    grid-template-columns: minmax(0, 40rem);
+  }
+
   .cpu {
     display: grid;
     gap: var(--space-3);
@@ -455,9 +489,11 @@
 
   .trace > li {
     display: grid;
-    grid-template-columns: 3ch 6ch minmax(12ch, 18ch) 1fr;
+    grid-template-columns: 3ch 6ch minmax(14ch, 22ch) 1fr;
     grid-template-areas:
-      "idx pc reading comment"
+      "idx pc took comment"
+      ". . effects effects"
+      ". . reading reading"
       ". . verdict verdict"
       ". . detail detail";
     gap: var(--space-1) var(--space-3);
@@ -485,6 +521,32 @@
   .trace .pc {
     grid-area: pc;
     color: var(--muted);
+  }
+
+  .trace .took {
+    grid-area: took;
+    display: grid;
+    gap: 2px;
+    font-family: var(--font-mono);
+    min-inline-size: 0;
+  }
+
+  .trace .took-text {
+    white-space: pre;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .trace .took-bytes {
+    font-size: 0.85em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .trace .effects {
+    grid-area: effects;
+    color: var(--ink);
   }
 
   .trace .reading {
@@ -515,6 +577,10 @@
   .trace .silicon-off .reading,
   .trace .silicon-off .verdict {
     color: var(--muted);
+  }
+
+  .trace .stuck .effects {
+    color: var(--diverge);
   }
 
   .trace .detail {
@@ -569,8 +635,10 @@
       grid-template-columns: 3ch 1fr;
       grid-template-areas:
         "idx pc"
-        ". reading"
+        ". took"
         ". comment"
+        ". effects"
+        ". reading"
         ". verdict"
         ". detail";
     }

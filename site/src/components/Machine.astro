@@ -5,23 +5,26 @@ import "../styles/machine.css";
 <section id="machine" class="machine">
   <div class="toolbar">
     <label class="field">
-      <span>Program</span>
+      <span>What to run</span>
       <select id="program">
-        <option id="custom-option" value="custom" hidden>Custom bytes</option>
+        <optgroup label="Things">
+          <option id="custom-option" value="custom" hidden>Custom bytes</option>
+        </optgroup>
+        <optgroup label="RISC-V programs" id="program-group"></optgroup>
       </select>
     </label>
     <details id="feed" class="feed">
       <summary>Feed it anything</summary>
       <div class="feed-body">
         <p class="muted">
-          The machine will run whatever you put in memory. Paste hex or plain text, drop any file onto this box, or ask
-          for random bytes. Silicon will stop at the first thing that is not an instruction; the model will not.
+          The machine runs whatever is in memory. Paste text or hex, drop any file onto this box, or ask for random
+          bytes.
         </p>
         <div class="feed-row">
-          <textarea id="feed-text" rows="3" placeholder="13 05 30 00 … or any text" aria-label="Bytes to load"></textarea>
+          <textarea id="feed-text" rows="3" placeholder="Any text, or hex bytes" aria-label="Bytes to load"></textarea>
           <div class="feed-controls">
-            <label><input type="radio" name="feed-kind" id="feed-hex" checked /> hex</label>
-            <label><input type="radio" name="feed-kind" id="feed-txt" /> text</label>
+            <label><input type="radio" name="feed-kind" id="feed-txt" checked /> text</label>
+            <label><input type="radio" name="feed-kind" id="feed-hex" /> hex</label>
             <button type="button" id="feed-load">Load these bytes</button>
           </div>
         </div>
@@ -54,11 +57,12 @@ import "../styles/machine.css";
       <summary>Knobs</summary>
       <div class="knob-grid">
         <label class="field">
-          <span>Decode help</span>
-          <select id="knob-decode">
-            <option value="blind">none: raw bytes only</option>
-            <option value="manual" selected>the RV32I manual</option>
-            <option value="disasm">manual plus a disassembler</option>
+          <span>How to read the bytes</span>
+          <select id="knob-reading">
+            <option value="free" selected>a language only the model knows</option>
+            <option value="blind">RISC-V, from the raw bytes</option>
+            <option value="manual">RISC-V, with the manual</option>
+            <option value="disasm">RISC-V, with the manual and a decoder</option>
           </select>
         </label>
         <label class="field">
@@ -89,6 +93,10 @@ import "../styles/machine.css";
       </div>
       <p class="muted">Changes apply from the next instruction.</p>
     </details>
+    <label class="field inline compare" id="compare-field" hidden>
+      <input type="checkbox" id="compare" />
+      <span>Compare with a silicon RISC-V processor</span>
+    </label>
   </div>
   <p id="model-note" class="note muted"></p>
 
@@ -97,9 +105,13 @@ import "../styles/machine.css";
       <h2 id="source-h">Source</h2>
       <ol id="source" class="source mono"></ol>
     </section>
-    <section class="pane" aria-labelledby="asm-h">
+    <section id="asm-pane" class="pane" aria-labelledby="asm-h">
       <h2 id="asm-h">Assembly <span class="muted">as silicon reads it</span></h2>
       <ol id="asm" class="asm mono"></ol>
+    </section>
+    <section id="text-pane" class="pane" aria-labelledby="text-h">
+      <h2 id="text-h">The bytes as text <span class="muted">what the model is reading</span></h2>
+      <pre id="text" class="textview mono"></pre>
     </section>
     <section class="pane" aria-labelledby="mem-h">
       <h2 id="mem-h">Memory <span id="image-label" class="muted"></span></h2>
@@ -122,21 +134,21 @@ import "../styles/machine.css";
       </select>
     </label>
     <button type="button" id="format" aria-pressed="false">Show registers in decimal</button>
-    <span class="counter"><span id="step-count">0</span> instructions</span>
+    <span id="measures" class="counter"></span>
     <span id="divergence" class="counter"></span>
   </div>
   <p id="status" class="status" role="status" aria-live="polite"></p>
 
   <p id="latest" class="latest"></p>
 
-  <div class="cpus">
+  <div id="cpus" class="cpus">
     <section class="cpu model" aria-labelledby="model-h">
       <h2 id="model-h">The model</h2>
       <p class="cpu-line mono">pc <span id="model-pc"></span> <span id="model-status" class="cpu-status"></span></p>
       <div id="model-regs" class="regs mono"></div>
       <output id="model-console" class="console mono" aria-label="Model console"></output>
     </section>
-    <section class="cpu silicon" aria-labelledby="silicon-h">
+    <section id="silicon-cpu" class="cpu silicon" aria-labelledby="silicon-h" hidden>
       <h2 id="silicon-h">Silicon</h2>
       <p class="cpu-line mono">pc <span id="silicon-pc"></span> <span id="silicon-status" class="cpu-status"></span></p>
       <div id="silicon-regs" class="regs mono"></div>
@@ -147,9 +159,8 @@ import "../styles/machine.css";
 
   <section class="trace-section" aria-labelledby="trace-h">
     <h2 id="trace-h">Trace</h2>
-    <p class="muted">
-      One row per instruction: how silicon reads the bytes, what the model said it was doing, and whether the two
-      machines still agree.
+    <p id="trace-blurb" class="muted">
+      One row per instruction: the bytes the model took as an instruction, what it said they meant, and what it did.
     </p>
     <ol id="trace" class="trace"></ol>
   </section>

@@ -21,4 +21,4 @@ opcode 0x33 op: rd = rs1 OP rs2
 opcode 0x0f fence and 0x73 ecall/ebreak: no effect on this machine; just move to pc+4.
 
 Registers: x0=zero (always 0), x1=ra (return address), x2=sp (stack pointer), x3=gp, x4=tp, x5-7=t0-t2, x8=s0/fp, x9=s1, x10-17=a0-a7 (arguments/results), x18-27=s2-s11, x28-31=t3-t6.
-Common idioms: addi rd, zero, imm = load a constant; jalr zero, 0(ra) = return; jal zero, off = plain jump; lui + addi = build a 32-bit address; a store to 0x4000 prints a character; a store to 0x4004 halts.`;
+Common idioms: addi rd, zero, imm = load a constant; jalr zero, 0(ra) = return; jal zero, off = plain jump; lui + addi = build a 32-bit address; a store into the console page at 0x4000 prints characters; a store to 0x4100 halts.`;

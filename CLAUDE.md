@@ -1,14 +1,17 @@
 # llmcpu
 
-A language model as the control unit of a tiny RV32I machine, running in the
-browser beside a silicon reference. `README.md` has the layout, the check
+A computer whose CPU is a language model, in the browser. The default framing
+is growth, not deficit: any bytes are a program, the model decides what an
+instruction is, and the trace reports what it read, printed and wrote. RISC-V
+programs and the silicon comparison are one input and one option among others;
+keep copy, defaults and layout pointed that way. `README.md` has the layout, the check
 commands for both halves and the real-model test recipe; run commands with
 `mise exec --`.
 
 ## Constraints
 
 - The machine spec (16 KiB RAM, sp at 0x4000, console at 0x4000, halt at
-  0x4004, entry at 0) is shared by `programs/link.ld`, `programs/llmcpu.h`,
+  0x4100, console page 0x4000 to 0x40ff, entry at 0) is shared by `programs/link.ld`, `programs/llmcpu.h`,
   `programs/start.S` and `site/src/lib/rv32i/machine.ts`. Change all or none.
 - Programs are RV32I only, no M extension, no libc: `*`, `/` and `%` emit calls
   to builtins that do not exist and the Makefile fails the link on any

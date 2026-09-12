@@ -28,7 +28,7 @@ c 0x00a5a023 sw	a0, 0(a1)
 60 0x014000ef jal	ra, 0x74
 64 0x00000997 auipc	s3, 0
 68 0x02a00a13 addi	s4, zero, 42
-6c 0x0145a223 sw	s4, 4(a1)
+6c 0x1145a023 sw	s4, 256(a1)
 70 0x0000006f jal	zero, 0x70
 74 0x00700a93 addi	s5, zero, 7
 78 0x00008067 jalr	zero, 0(ra)

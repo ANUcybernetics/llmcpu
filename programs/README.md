@@ -14,8 +14,8 @@ artefact, checked in so the site build only ever reads files.
 | RAM           | 16 KiB, `0x00000000`--`0x00003FFF` (code, rodata, data, bss all here) |
 | Entry point   | `_start` at `0x00000000`                                              |
 | Stack         | initial `sp = 0x00004000`, grows down                                 |
-| MMIO: CONSOLE | `0x00004000`, word store, low byte is printed as a character          |
-| MMIO: HALT    | `0x00004004`, word store, stored value is the exit code               |
+| MMIO: CONSOLE | `0x00004000`-`0x40ff` page; a store prints its bytes, lowest first, to the first zero |
+| MMIO: HALT    | `0x00004100`, word store, stored value is the exit code               |
 
 No interrupts, no `ecall`/`ebreak`.
 

@@ -21,7 +21,7 @@ Disassembly of section .text:
       28:      	auipc	ra, 0
       2c:      	jalr	ra, 24(ra) <.Lline_table_start0+0x40>
       30:      	lui	a1, 4
-      34:      	addi	a1, a1, 4
+      34:      	addi	a1, a1, 256
       38:      	sw	a0, 0(a1)
       3c:      	jal	zero, 0x3c <.Lline_table_start0+0x3c>
 
