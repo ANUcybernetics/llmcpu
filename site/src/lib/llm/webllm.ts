@@ -9,13 +9,22 @@ export type { InitProgressReport };
 const THINK_BLOCK = /^\s*<think>[\s\S]*?<\/think>\s*/;
 export const stripThinking = (text: string): string => text.replace(THINK_BLOCK, "");
 
+/** tokens of context to ask the runtime for; the prompt is a few thousand on binary inputs */
+export const CONTEXT_WINDOW = 8192;
+
 export const hasWebGpu = (): boolean => typeof navigator !== "undefined" && "gpu" in navigator;
 
 export async function createWebLlmBackend(
   modelId: string,
   onProgress: (report: InitProgressReport) => void,
 ): Promise<Backend & { unload: () => Promise<void> }> {
-  const engine: MLCEngine = await CreateMLCEngine(modelId, { initProgressCallback: onProgress });
+  // the prebuilt configs default to a 4 KiB context, which a prompt carrying 64
+  // bytes of hex, a language design and eight remembered instructions overruns
+  const engine: MLCEngine = await CreateMLCEngine(
+    modelId,
+    { initProgressCallback: onProgress },
+    { context_window_size: CONTEXT_WINDOW },
+  );
   return {
     id: modelId,
     async complete(messages: ChatMessage[], options: CompletionOptions): Promise<Completion> {
