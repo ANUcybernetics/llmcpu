@@ -9,6 +9,8 @@
   "jsPlugins": ["@e18e/eslint-plugin"],
   "rules": {
     "eqeqeq": "error",
+    // the model runner is sequential by nature: each round depends on the last
+    "no-await-in-loop": "off",
     "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }],
     // the e18e "recommended" preset, enumerated because oxlint's jsPlugins
     // bridge can't consume ESLint flat-config presets
