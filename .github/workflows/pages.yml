@@ -1,0 +1,72 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v4
+
+      - name: Install dependencies
+        working-directory: site
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Astro build artefacts
+        uses: actions/cache@v6
+        with:
+          path: site/node_modules/.astro
+          key: astro-${{ github.sha }}
+          restore-keys: astro-
+
+      - name: Lint
+        working-directory: site
+        run: pnpm run lint
+
+      - name: Lint CSS
+        working-directory: site
+        run: pnpm run lint:css
+
+      - name: Check formatting
+        working-directory: site
+        run: pnpm run format:check
+
+      - name: Typecheck
+        working-directory: site
+        run: pnpm run typecheck
+
+      - name: Test
+        working-directory: site
+        run: pnpm run test
+
+      - name: Build
+        working-directory: site
+        run: pnpm run build
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

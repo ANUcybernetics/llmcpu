@@ -1,0 +1,62 @@
+# llmcpu
+
+A language model wired up as the control unit of a tiny RISC-V computer. It is
+handed the bytes at the program counter and a few tools (read and write memory,
+read and write registers, one piece of 32-bit arithmetic, move the program
+counter) and has to run whatever is in memory. A silicon RV32I interpreter runs
+the same bytes in lockstep so you can see where the model strays. Feed it bytes
+that were never a program and it keeps going anyway; silicon stops at the first
+word it cannot decode.
+
+Everything runs in the browser: the model through
+[WebLLM](https://github.com/mlc-ai/web-llm) on WebGPU, the machine in
+TypeScript. There is no server. Live at
+<https://anucybernetics.github.io/llmcpu/>.
+
+Two halves:
+
+- **`programs/`**: small bare-metal C programs compiled with clang for the
+  machine (RV32I, 16 KiB, a memory-mapped console and halt port). The ELFs,
+  objdump listings and DWARF line tables are committed, so the site build needs
+  no cross-compiler. `programs/README.md` has the machine spec and build notes.
+- **`site/`**: the Astro static site. `site/src/lib/rv32i` is the machine
+  (decoder, executor, ELF loader, any-bytes images), `site/src/lib/llm` is the
+  model side (micro-op schema, prompt builder, runner, lockstep comparator,
+  WebLLM and mock backends), `site/src/app` is the page.
+
+## Working on it
+
+Toolchain comes from `mise.toml` (node, pnpm); the programs additionally need
+`clang`, `ld.lld` and the LLVM binutils (`llvm-objdump-18` et al.) plus `uv`.
+
+```sh
+cd site
+mise exec -- pnpm install
+mise exec -- pnpm run dev          # http://localhost:4321/llmcpu/
+mise exec -- pnpm run typecheck
+mise exec -- pnpm run lint && mise exec -- pnpm run lint:css
+mise exec -- pnpm run format:check
+mise exec -- pnpm run test         # decoder vs objdump, every program to halt, runner + lockstep
+mise exec -- pnpm run build
+
+cd ../programs
+make                               # rebuild every program's .elf, disasm.txt and lines.json
+```
+
+The "perfect oracle" entry in the model dropdown is the silicon CPU answering in
+the model's place. It needs no download or GPU and is the quickest way to see
+the machinery work, including in tests and on machines without WebGPU.
+
+## How a step works
+
+1. The prompt carries the machine state (how much is a knob), the model's own
+   recent trace, and its scratchpad note.
+2. The model replies with JSON, constrained to a schema: a one-sentence comment
+   and a list of ops.
+3. Ops are applied in order. Ops that return information (`peek`, `load`,
+   `get_reg`, `alu`, `disasm`) pause the list and the model is asked again with
+   the results. `set_pc` commits the instruction.
+4. Silicon executes one instruction, and the two machines are compared
+   register by register, byte by byte. The first disagreement is the score.
+
+Deploys to GitHub Pages from `main` via `.github/workflows/pages.yml`.
