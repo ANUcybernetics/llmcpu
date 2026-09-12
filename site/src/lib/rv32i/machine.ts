@@ -154,6 +154,18 @@ export function setPc(m: MachineState, delta: Delta, pc: number): void {
   delta.pcAfter = m.pc;
 }
 
+/** Re-apply a recorded delta to a machine in the state it was recorded from (used to replay a recording). */
+export function redo(m: MachineState, delta: Delta): void {
+  for (const w of delta.regWrites) if (w.reg !== 0) m.regs[w.reg] = w.after;
+  for (const w of delta.memWrites) {
+    if (onDisplay(w.addr)) m.display.set(w.after, w.addr - DISPLAY_ADDR);
+    else m.mem.set(w.after, w.addr);
+  }
+  m.output += delta.output;
+  if (delta.halted !== null) m.halted = delta.halted;
+  m.pc = delta.pcAfter;
+}
+
 /** Reverse a delta (used for step-back). Deltas must be undone in reverse order. */
 export function undo(m: MachineState, delta: Delta): void {
   for (const w of delta.regWrites.toReversed()) m.regs[w.reg] = w.before;

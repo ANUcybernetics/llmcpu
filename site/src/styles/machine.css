@@ -371,6 +371,37 @@
     text-wrap: pretty;
   }
 
+  /* recordings */
+
+  .recording-banner {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5ch var(--space-3);
+    align-items: baseline;
+    padding: var(--space-3);
+    border: 2px solid var(--diverge);
+    border-radius: var(--radius);
+    background: var(--diverge-soft);
+    font-size: var(--step0);
+  }
+
+  .recording-banner strong {
+    color: var(--diverge);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .recording-banner .muted {
+    flex-basis: 100%;
+    font-size: var(--step-1);
+  }
+
+  .cpu.model.recorded h2::after {
+    content: " (recording)";
+    color: var(--diverge);
+    font-size: var(--step0);
+  }
+
   /* the model's language design */
 
   .language {

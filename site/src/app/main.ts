@@ -4,17 +4,25 @@
 import { INPUTS, type InputEntry, inputBySlug } from "../lib/inputs";
 import {
   type Backend,
+  type Cpu,
   DEFAULT_KNOBS,
   DEFAULT_MODEL_ID,
-  type Knobs,
   inconsistentWith,
+  type Knobs,
+  type LlmStep,
   Lockstep,
   LlmCpu,
   mockBackend,
   MODEL_OPTIONS,
+  type Recording,
+  type RecordingMeta,
+  recordingImage,
+  recordRun,
+  ReplayCpu,
   runMetrics,
   webLlmModelId,
 } from "../lib/llm";
+import { recordingById, RECORDINGS } from "../lib/recordings";
 import type { Program } from "../lib/programs";
 import {
   cloneMachine,
@@ -63,7 +71,9 @@ interface Session {
   bands: Bands;
   model: MachineState;
   lock: Lockstep;
-  cpu: LlmCpu | null;
+  cpu: Cpu | null;
+  /** set while a recording is being replayed instead of a model run */
+  recording: Recording | null;
   /** what silicon alone would have printed, for the reference panel */
   preview: { output: string; note: string | null };
 }
@@ -102,7 +112,11 @@ function siliconPreview(m: MachineState): { output: string; note: string | null 
   }
 }
 
-function newSession(image: Image, program: Program | null): Session {
+function newSession(
+  image: Image,
+  program: Program | null,
+  recording: Recording | null = null,
+): Session {
   const model = machineFromImage(image);
   let textEnd = Math.min(RAM_SIZE, image.bytes.length);
   if (image.kind === "elf") {
@@ -117,12 +131,50 @@ function newSession(image: Image, program: Program | null): Session {
     bands,
     model,
     lock: new Lockstep(cloneMachine(model)),
-    cpu: backend ? new LlmCpu(model, backend, knobs, textEnd) : null,
+    cpu: recording
+      ? new ReplayCpu(recording, model)
+      : backend
+        ? new LlmCpu(model, backend, knobs, textEnd)
+        : null,
+    recording,
     preview: siliconPreview(model),
   };
 }
 
-const revisedFields = (cpu: LlmCpu | null): Set<string> =>
+const RECORDING_PREFIX = "rec:";
+
+function renderRecordingBanner(): void {
+  const rec = session.recording;
+  $("recording-banner").hidden = rec === null;
+  $("model-cpu").classList.toggle("recorded", rec !== null);
+  if (!rec) return;
+  const m = rec.meta;
+  $("recording-label").textContent =
+    `${m.modelLabel}, ${describeKnobs(m.knobs)}, ${m.input.label}, ${m.date}, ${m.hardware}. ${m.notes}`;
+}
+
+const READING_NAMES: Record<Knobs["reading"], string> = {
+  free: "reading freely",
+  blind: "reading RISC-V from raw bytes",
+  manual: "reading RISC-V with the manual",
+  disasm: "reading RISC-V with the manual and a decoder",
+};
+
+const describeKnobs = (k: Knobs): string =>
+  `${READING_NAMES[k.reading]}, ${k.echo} state echo, thinking ${k.thinking}, ${k.window} instructions remembered`;
+
+/** Put the knob controls in the given state and lock them while a recording plays. */
+function showKnobs(k: Knobs, locked: boolean): void {
+  $<HTMLSelectElement>("knob-reading").value = k.reading;
+  $<HTMLSelectElement>("knob-echo").value = k.echo;
+  $<HTMLSelectElement>("knob-thinking").value = k.thinking;
+  $<HTMLSelectElement>("knob-window").value = String(k.window);
+  for (const id of KNOB_IDS) $<HTMLSelectElement>(id).disabled = locked;
+}
+
+const KNOB_IDS = ["knob-reading", "knob-echo", "knob-thinking", "knob-window"] as const;
+
+const revisedFields = (cpu: Cpu | null): Set<string> =>
   new Set(cpu?.steps.flatMap((s) => s.revisions.map((r) => r.field)) ?? []);
 
 function renderLanguagePane(): void {
@@ -158,6 +210,7 @@ function renderAll(): void {
   $("silicon-expected").textContent = s.preview.note
     ? `On its own, silicon ${s.preview.note}${s.preview.output ? ` after printing ${JSON.stringify(s.preview.output)}` : ""}.`
     : `On its own, silicon prints ${JSON.stringify(s.preview.output)} and halts.`;
+  renderRecordingBanner();
   updateButtons();
 }
 
@@ -214,17 +267,17 @@ function renderState(marks: Highlights): void {
 }
 
 function updateButtons(): void {
-  const ready = backend !== null && session.cpu !== null && !busy;
-  const halted = session.model.halted !== null;
-  $<HTMLButtonElement>("step").disabled = !ready || halted || running;
-  $<HTMLButtonElement>("run").disabled = !ready || halted;
+  const ready = session.cpu !== null && !busy;
+  const ended = session.model.halted !== null || session.cpu?.remaining() === 0;
+  $<HTMLButtonElement>("step").disabled = !ready || ended || running;
+  $<HTMLButtonElement>("run").disabled = !ready || ended;
   $<HTMLButtonElement>("run").textContent = running ? "Pause" : "Run";
   $<HTMLButtonElement>("back").disabled =
     !ready || running || (session.cpu?.steps.length ?? 0) === 0;
   $<HTMLButtonElement>("reset").disabled = busy;
 }
 
-const marksFor = (step: LlmCpu["steps"][number]): Highlights => ({
+const marksFor = (step: LlmStep): Highlights => ({
   regs: new Set(step.delta.regWrites.map((w) => w.reg)),
   mem: new Set(
     step.delta.memWrites
@@ -244,14 +297,19 @@ const marksFor = (step: LlmCpu["steps"][number]): Highlights => ({
 
 async function stepOnce(): Promise<void> {
   const s = session;
-  if (!s.cpu || busy || s.model.halted !== null) return;
+  if (!s.cpu || busy || s.model.halted !== null || s.cpu.remaining() === 0) return;
+  const recorded = s.recording !== null;
   busy = true;
   updateButtons();
   const pc = s.model.pc;
   const word = pc + 4 <= RAM_SIZE ? load(s.model, pc, 4) : 0;
   try {
     if (s.cpu.needsDesign()) {
-      setStatus("step zero: the model is reading the start of memory and designing its language…");
+      setStatus(
+        recorded
+          ? "step zero of the recording: the model's language design."
+          : "step zero: the model is reading the start of memory and designing its language…",
+      );
       const design = await s.cpu.designLanguage();
       renderLanguagePane();
       setLatest(
@@ -260,9 +318,10 @@ async function stepOnce(): Promise<void> {
           : "The model could not put its language into words; it will read without one.",
       );
     }
-    setStatus(
-      `instruction ${s.cpu.steps.length + 1}: the model is reading from 0x${pc.toString(16)}…`,
-    );
+    if (!recorded)
+      setStatus(
+        `instruction ${s.cpu.steps.length + 1}: the model is reading from 0x${pc.toString(16)}…`,
+      );
     const step = await s.cpu.stepInstruction();
     const cmp = isElf() ? s.lock.advance(step, s.model) : null;
     appendTraceRow(
@@ -280,6 +339,13 @@ async function stepOnce(): Promise<void> {
         `the model halted the machine with exit code ${s.model.halted} after ${s.cpu.steps.length} instructions.`,
       );
       running = false;
+    } else if (s.cpu.remaining() === 0) {
+      setStatus(`the recording ends here, after ${s.cpu.steps.length} instructions.`);
+      running = false;
+    } else if (recorded) {
+      setStatus(
+        `recorded instruction ${step.index} (the model took ${(step.ms / 1000).toFixed(1)} s at the time); ${s.cpu.remaining()} to go.`,
+      );
     } else if (
       cmp &&
       comparing() &&
@@ -306,9 +372,11 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 async function runLoop(): Promise<void> {
   running = true;
   updateButtons();
-  while (running && session.model.halted === null) {
+  while (running && session.model.halted === null && session.cpu?.remaining() !== 0) {
     await stepOnce();
-    if (running && pauseMs() > 0) await sleep(pauseMs());
+    // a recording replays instantly, so give it a beat per instruction unless asked for more
+    const pause = session.recording && pauseMs() === 0 ? 400 : pauseMs();
+    if (running && pause > 0) await sleep(pause);
   }
   running = false;
   updateButtons();
@@ -330,13 +398,21 @@ function stepBack(): void {
 
 function reset(): void {
   running = false;
-  session = newSession(session.image, session.program);
+  session = newSession(session.image, session.program, session.recording);
   renderAll();
-  setStatus("machine reset.");
+  setStatus(session.recording ? "back to the start of the recording." : "machine reset.");
+}
+
+/** Leaving a recording: the knobs unlock and the model dropdown goes back to a live choice. */
+function leaveRecording(): void {
+  if (!session.recording) return;
+  showKnobs(knobs, false);
+  $<HTMLSelectElement>("model").value = backend ? $<HTMLSelectElement>("model").value : ORACLE_ID;
 }
 
 async function loadInput(entry: InputEntry): Promise<void> {
   running = false;
+  leaveRecording();
   session = newSession(await entry.load(), entry.program);
   renderAll();
   setStatus(`loaded ${entry.title.toLowerCase()}: ${entry.blurb}`);
@@ -344,6 +420,7 @@ async function loadInput(entry: InputEntry): Promise<void> {
 
 function loadCustom(image: Image): void {
   running = false;
+  leaveRecording();
   session = newSession(image, null);
   $<HTMLSelectElement>("program").value = "custom";
   $<HTMLOptionElement>("custom-option").hidden = false;
@@ -357,10 +434,27 @@ async function loadModel(id: string): Promise<void> {
   const progress = $<HTMLProgressElement>("model-progress");
   const note = $("model-note");
   button.disabled = true;
-  backend = null;
-  session.cpu = null;
   updateButtons();
   try {
+    if (id.startsWith(RECORDING_PREFIX)) {
+      const entry = recordingById(id.slice(RECORDING_PREFIX.length));
+      if (!entry) throw new Error(`no recording ${id}`);
+      note.textContent = "Fetching the recording…";
+      const recording = await entry.load();
+      running = false;
+      session = newSession(recordingImage(recording), null, recording);
+      $<HTMLSelectElement>("program").value = recording.meta.input.slug ?? "custom";
+      if (!recording.meta.input.slug) $<HTMLOptionElement>("custom-option").hidden = false;
+      showKnobs(recording.meta.knobs, true);
+      renderAll();
+      note.textContent = `A recording of ${recording.meta.modelLabel} on ${recording.meta.input.label}: ${recording.meta.steps} instructions. Step through it, or press run.`;
+      setStatus("recording loaded. Nothing will be computed; step through what the model did.");
+      return;
+    }
+    backend = null;
+    session.cpu = null;
+    leaveRecording();
+    if (session.recording) session = newSession(session.image, session.program);
     if (id === ORACLE_ID) {
       backend = mockBackend(() => session.model);
       note.textContent =
@@ -378,16 +472,8 @@ async function loadModel(id: string): Promise<void> {
       });
       note.textContent = `${MODEL_OPTIONS.find((m) => m.id === id)?.label ?? id} is loaded and running on your GPU.`;
     }
-    session.cpu = new LlmCpu(session.model, backend, knobs);
-    // a handle for poking at the loaded backend from the console
-    Object.assign(window, {
-      llmcpu: {
-        backend,
-        get session() {
-          return session;
-        },
-      },
-    });
+    session.cpu = new LlmCpu(session.model, backend, knobs, session.textEnd);
+    renderAll();
     setStatus("model ready. Step through the bytes, or press run.");
   } catch (error) {
     note.textContent = `Could not load the model: ${(error as Error).message}`;
@@ -485,15 +571,28 @@ async function populateSelects(): Promise<void> {
     (entry.group === "things" ? things : programs).append(option);
   }
   const model = $<HTMLSelectElement>("model");
+  const recordings = $<HTMLOptGroupElement>("recording-group");
+  for (const r of RECORDINGS) {
+    const option = document.createElement("option");
+    option.value = `${RECORDING_PREFIX}${r.meta.id}`;
+    option.textContent = `${r.meta.title} (${r.meta.modelLabel}, ${r.meta.date})`;
+    recordings.append(option);
+  }
+  recordings.hidden = RECORDINGS.length === 0;
+  const live = $<HTMLOptGroupElement>("model-group");
   gpu = await webGpu();
   for (const m of MODEL_OPTIONS) {
     const option = document.createElement("option");
     option.value = m.id;
     option.textContent = `${m.label} (${(m.vramMb / 1024).toFixed(1)} GB)`;
     option.disabled = gpu === null;
-    model.append(option);
+    live.append(option);
   }
-  model.value = gpu ? DEFAULT_MODEL_ID : ORACLE_ID;
+  model.value = gpu
+    ? DEFAULT_MODEL_ID
+    : RECORDINGS[0]
+      ? `${RECORDING_PREFIX}${RECORDINGS[0].meta.id}`
+      : ORACLE_ID;
   if (gpu && !gpu.f16) {
     $("model-note").textContent =
       "This GPU does not expose 16-bit shader arithmetic, so the larger 32-bit model builds will be used.";
@@ -504,7 +603,32 @@ async function populateSelects(): Promise<void> {
   }
 }
 
+/** The console handle: the backend, the session, and a way to save the current run as a recording. */
+function exposeHandle(): void {
+  Object.assign(window, {
+    llmcpu: {
+      get backend() {
+        return backend;
+      },
+      get session() {
+        return session;
+      },
+      record(meta: Omit<RecordingMeta, "knobs" | "steps" | "input">): string {
+        if (!(session.cpu instanceof LlmCpu)) throw new Error("no live run to record");
+        const slug = $<HTMLSelectElement>("program").value;
+        return JSON.stringify(
+          recordRun(session.cpu, session.image, {
+            ...meta,
+            input: { slug: slug === "custom" ? null : slug },
+          }),
+        );
+      },
+    },
+  });
+}
+
 export async function main(): Promise<void> {
+  exposeHandle();
   await populateSelects();
   wireHoverLinking($("machine"));
   wireFeed();
@@ -536,10 +660,10 @@ export async function main(): Promise<void> {
     );
     renderState(NO_MARKS);
   });
-  for (const id of ["knob-reading", "knob-echo", "knob-thinking", "knob-window"]) {
+  for (const id of KNOB_IDS) {
     $(id).addEventListener("change", () => {
       knobs = readKnobs();
-      if (session.cpu) session.cpu.knobs = knobs;
+      if (session.cpu && !session.recording) session.cpu.knobs = knobs;
     });
   }
   const first = INPUTS[0]!;

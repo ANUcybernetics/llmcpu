@@ -84,7 +84,23 @@ const LanguageSchema = z.object({
 
 const now = (): number => (typeof performance === "undefined" ? Date.now() : performance.now());
 
-export class LlmCpu {
+/** What the page drives: a live model (LlmCpu) or a recording of one (ReplayCpu) behave the same. */
+export interface Cpu {
+  readonly machine: MachineState;
+  readonly steps: LlmStep[];
+  readonly note: string;
+  readonly language: LanguageDesign | null;
+  readonly design: DesignStep | null;
+  knobs: Knobs;
+  needsDesign(): boolean;
+  designLanguage(): Promise<DesignStep>;
+  stepInstruction(): Promise<LlmStep>;
+  undoLast(): LlmStep | null;
+  /** how many more instructions there are to show, or null when that is up to the model */
+  remaining(): number | null;
+}
+
+export class LlmCpu implements Cpu {
   readonly steps: LlmStep[] = [];
   note = "";
   /** the model's language design (free reading only), null until designed */
@@ -98,6 +114,10 @@ export class LlmCpu {
     /** how many bytes the image put in memory, for the design prompt */
     readonly imageSize: number = machine.mem.length,
   ) {}
+
+  remaining(): number | null {
+    return null;
+  }
 
   /** True when the next thing to happen is the design step rather than an instruction. */
   needsDesign(): boolean {

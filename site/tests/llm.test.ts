@@ -9,6 +9,9 @@ import {
   inconsistentWith,
   Lockstep,
   LlmCpu,
+  recordingImage,
+  recordRun,
+  ReplayCpu,
   mockBackend,
   OpSchema,
   parseStep,
@@ -574,5 +577,52 @@ describe("language design", () => {
     expect(fourth.read).toEqual([0x61, 0x62, 0x20]);
     expect(inconsistentWith(cpu.steps, fourth)?.index).toBe(1);
     expect(runMetrics(cpu.steps, m).inconsistent).toBe(1);
+  });
+});
+
+describe("recordings", () => {
+  it("replay a live run exactly, through JSON, at any pace, with step-back", async () => {
+    const image = imageFromBytes(
+      new Uint8Array(readFileSync(join(import.meta.dirname, "../../programs/hello/main.elf"))),
+      "hello",
+    );
+    const live = machineFromImage(image);
+    const cpu = new LlmCpu(
+      live,
+      mockBackend(() => live),
+      DEFAULT_KNOBS,
+      64,
+    );
+    while (live.halted === null) await cpu.stepInstruction();
+    const rec = JSON.parse(
+      JSON.stringify(
+        recordRun(cpu, image, {
+          id: "t",
+          title: "T",
+          model: "mock",
+          modelLabel: "Mock",
+          date: "2026-09-12",
+          hardware: "none",
+          notes: "",
+        }),
+      ),
+    );
+    expect(rec.meta).toMatchObject({ steps: cpu.steps.length, knobs: DEFAULT_KNOBS });
+    expect(rec.design.design.name).toBe("RV32I");
+    const replay = new ReplayCpu(rec);
+    expect(recordingImage(rec).bytes).toEqual(image.bytes);
+    expect(replay.needsDesign()).toBe(true);
+    expect(replay.remaining()).toBe(cpu.steps.length);
+    const first = await replay.stepInstruction();
+    expect(replay.language?.name).toBe("RV32I");
+    expect(first.index).toBe(1);
+    replay.undoLast();
+    expect(replay.machine.pc).toBe(0);
+    while (replay.remaining() > 0) await replay.stepInstruction();
+    expect(replay.machine.output).toBe(live.output);
+    expect(replay.machine.halted).toBe(0);
+    expect([...replay.machine.regs]).toEqual([...live.regs]);
+    expect([...replay.machine.mem]).toEqual([...live.mem]);
+    expect(runMetrics(replay.steps, replay.machine)).toEqual(runMetrics(cpu.steps, live));
   });
 });

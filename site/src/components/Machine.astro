@@ -48,7 +48,10 @@ import "../styles/machine.css";
     <label class="field">
       <span>Model</span>
       <select id="model">
-        <option value="oracle">Perfect oracle (no language model)</option>
+        <optgroup label="Recordings of real runs (no GPU needed)" id="recording-group"></optgroup>
+        <optgroup label="Live models (run on your GPU)" id="model-group">
+          <option value="oracle">Perfect oracle (no language model)</option>
+        </optgroup>
       </select>
     </label>
     <button type="button" id="load-model">Load model</button>
@@ -99,6 +102,11 @@ import "../styles/machine.css";
     </label>
   </div>
   <p id="model-note" class="note muted"></p>
+  <aside id="recording-banner" class="recording-banner" hidden>
+    <strong>This is a recording.</strong>
+    <span id="recording-label"></span>
+    <span class="muted">Nothing is being computed now: every instruction below was produced by that model, on that day, and is replayed here at your pace.</span>
+  </aside>
 
   <div class="panes">
     <section id="source-pane" class="pane" aria-labelledby="source-h">
@@ -152,7 +160,7 @@ import "../styles/machine.css";
   </section>
 
   <div id="cpus" class="cpus">
-    <section class="cpu model" aria-labelledby="model-h">
+    <section id="model-cpu" class="cpu model" aria-labelledby="model-h">
       <h2 id="model-h">The model</h2>
       <p class="cpu-line mono">pc <span id="model-pc"></span> <span id="model-status" class="cpu-status"></span></p>
       <div id="model-regs" class="regs mono"></div>
