@@ -3,8 +3,8 @@
 A computer whose CPU is a language model. The model is handed the bytes at the
 program counter and a few tools (read and write memory, read and write
 registers, one piece of 32-bit arithmetic, move the program counter) and runs
-whatever is in memory: a poem, a photograph, noise, or a real RISC-V program.
-By default it is told nothing about what an instruction is; it chooses how many
+whatever is in memory: a poem, a photograph, noise, or a real RISC-V program. By
+default it is told nothing about what an instruction is; it chooses how many
 bytes to take and what they mean. For RISC-V programs a silicon RV32I
 interpreter can run alongside in lockstep to show where the model's reading
 parts from the official one.
@@ -17,10 +17,9 @@ TypeScript. There is no server. Live at
 Two halves:
 
 - **`programs/`**: small bare-metal C programs compiled with clang for the
-  machine (RV32I, 16 KiB, a memory-mapped console page and halt port). The
-  ELFs, objdump listings and DWARF line tables are committed, so the site build
-  needs no cross-compiler. `programs/README.md` has the machine spec and build
-  notes.
+  machine (RV32I, 16 KiB, a memory-mapped console page and halt port). The ELFs,
+  objdump listings and DWARF line tables are committed, so the site build needs
+  no cross-compiler. `programs/README.md` has the machine spec and build notes.
 - **`site/`**: the Astro static site. `site/src/lib/rv32i` is the machine
   (decoder, executor, ELF loader, any-bytes images), `site/src/lib/llm` is the
   model side (micro-op schema, prompt builder, runner, lockstep comparator,
@@ -53,8 +52,8 @@ the machinery work, including in tests and on machines without WebGPU.
 
 ### Trying a real model from the command line
 
-Headless Chrome gets no WebGPU adapter by default. On a Linux box with an
-NVIDIA card and the Vulkan ICD installed, `agent-browser` can reach it:
+Headless Chrome gets no WebGPU adapter by default. On a Linux box with an NVIDIA
+card and the Vulkan ICD installed, `agent-browser` can reach it:
 
 ```sh
 cd site && mise exec -- pnpm run build && mise exec -- pnpm exec astro preview --port 4321 &
@@ -66,9 +65,10 @@ agent-browser click "#step"                     # then read #status, #latest, #t
 ```
 
 The adapter reports no `shader-f16`, so the page picks the q4f32 model builds
-there. Once a model is loaded, `window.llmcpu.backend.complete(messages,
-{ jsonSchema, maxTokens, temperature })` in the page console calls it directly,
-which is the fastest way to try a schema or prompt change.
+there. Once a model is loaded,
+`window.llmcpu.backend.complete(messages, { jsonSchema, maxTokens, temperature })`
+in the page console calls it directly, which is the fastest way to try a schema
+or prompt change.
 
 ## How a step works
 
@@ -81,10 +81,10 @@ which is the fastest way to try a schema or prompt change.
 3. Ops are applied in order. Ops that return information (`peek`, `load`,
    `get_reg`, `alu`, `disasm`) pause the list and the model is asked again with
    the results. `set_pc` commits the instruction.
-4. In the free reading the runner insists on two things: an instruction must
-   do something besides moving pc, and pc must move. The trace reports what
-   was read, printed and written. With a RISC-V program and the silicon
-   comparison on, silicon executes one instruction per model step and the two
-   machines are compared register by register, byte by byte.
+4. In the free reading the runner insists on two things: an instruction must do
+   something besides moving pc, and pc must move. The trace reports what was
+   read, printed and written. With a RISC-V program and the silicon comparison
+   on, silicon executes one instruction per model step and the two machines are
+   compared register by register, byte by byte.
 
 Deploys to GitHub Pages from `main` via `.github/workflows/pages.yml`.
