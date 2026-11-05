@@ -16,7 +16,7 @@ ab() { agent-browser "$@"; }
 # BROWSER_ARGS lets a fresh session start with the WebGPU flags (see README)
 ab ${BROWSER_ARGS:+--args "$BROWSER_ARGS"} open http://localhost:4321/llmcpu/ >/dev/null
 ok=false
-for i in $(seq 1 30); do
+for _ in $(seq 1 30); do
   sleep 2
   ok=$(ab eval "!!document.querySelector('#model option[value=\"$MODEL\"]') && !!document.querySelector('#program option[value=\"$INPUT\"]')")
   [[ "$ok" == "true" ]] && break
