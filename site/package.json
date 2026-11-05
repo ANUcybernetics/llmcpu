@@ -24,7 +24,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
     "@e18e/eslint-plugin": "^0.8.0",
-    "@types/node": "^24",
+    "@types/node": "^26.6.6",
     "oxfmt": "^0.67.0",
     "oxlint": "^1.82.0",
     "stylelint": "^17.15.0",
