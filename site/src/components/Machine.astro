@@ -17,11 +17,16 @@ import "../styles/machine.css";
       <summary>Feed it anything</summary>
       <div class="feed-body">
         <p class="muted">
-          The machine runs whatever is in memory. Paste text or hex, drop any file onto this box, or ask for random
-          bytes.
+          The machine runs whatever is in memory. Paste text or hex, drop any file onto this box, or
+          ask for random bytes.
         </p>
         <div class="feed-row">
-          <textarea id="feed-text" rows="3" placeholder="Any text, or hex bytes" aria-label="Bytes to load"></textarea>
+          <textarea
+            id="feed-text"
+            rows="3"
+            placeholder="Any text, or hex bytes"
+            aria-label="Bytes to load"
+          ></textarea>
           <div class="feed-controls">
             <label><input type="radio" name="feed-kind" id="feed-txt" checked /> text</label>
             <label><input type="radio" name="feed-kind" id="feed-hex" /> hex</label>
@@ -105,7 +110,10 @@ import "../styles/machine.css";
   <aside id="recording-banner" class="recording-banner" hidden>
     <strong>This is a recording.</strong>
     <span id="recording-label"></span>
-    <span class="muted">Nothing is being computed now: every instruction below was produced by that model, on that day, and is replayed here at your pace.</span>
+    <span class="muted"
+      >Nothing is being computed now: every instruction below was produced by that model, on that
+      day, and is replayed here at your pace.</span
+    >
   </aside>
 
   <div class="panes">
@@ -158,7 +166,9 @@ import "../styles/machine.css";
   <p id="latest" class="latest"></p>
 
   <section id="language-pane" class="language" aria-labelledby="language-h" hidden>
-    <h2 id="language-h">The language <span class="muted">as the model designed it, before running anything</span></h2>
+    <h2 id="language-h">
+      The language <span class="muted">as the model designed it, before running anything</span>
+    </h2>
     <p id="language-note" class="muted"></p>
     <dl id="language" class="language-card"></dl>
     <details id="language-detail" class="detail">
@@ -170,7 +180,9 @@ import "../styles/machine.css";
   <div id="cpus" class="cpus">
     <section id="model-cpu" class="cpu model" aria-labelledby="model-h">
       <h2 id="model-h">The model</h2>
-      <p class="cpu-line mono">pc <span id="model-pc"></span> <span id="model-status" class="cpu-status"></span></p>
+      <p class="cpu-line mono">
+        pc <span id="model-pc"></span> <span id="model-status" class="cpu-status"></span>
+      </p>
       <div id="model-regs" class="regs mono"></div>
       <div class="devices">
         <output id="model-console" class="console mono" aria-label="Model console"></output>
@@ -179,7 +191,9 @@ import "../styles/machine.css";
     </section>
     <section id="silicon-cpu" class="cpu silicon" aria-labelledby="silicon-h" hidden>
       <h2 id="silicon-h">Silicon</h2>
-      <p class="cpu-line mono">pc <span id="silicon-pc"></span> <span id="silicon-status" class="cpu-status"></span></p>
+      <p class="cpu-line mono">
+        pc <span id="silicon-pc"></span> <span id="silicon-status" class="cpu-status"></span>
+      </p>
       <div id="silicon-regs" class="regs mono"></div>
       <div class="devices">
         <output id="silicon-console" class="console mono" aria-label="Silicon console"></output>
@@ -192,7 +206,8 @@ import "../styles/machine.css";
   <section class="trace-section" aria-labelledby="trace-h">
     <h2 id="trace-h">Trace</h2>
     <p id="trace-blurb" class="muted">
-      One row per instruction: the bytes the model took as an instruction, what it said they meant, and what it did.
+      One row per instruction: the bytes the model took as an instruction, what it said they meant,
+      and what it did.
     </p>
     <ol id="trace" class="trace"></ol>
   </section>

@@ -31,13 +31,12 @@ const nav = [
     <header>
       <a class="wordmark mono" href={`${base}/`}>llmcpu</a>
       <nav aria-label="Site">
-        {
-          nav.map((item) => (
-            <a href={item.href} aria-current={here === item.match ? "page" : undefined}>
-              {item.label}
-            </a>
-          ))
-        }
+        {nav.map((item) => <a
+          href={item.href}
+          aria-current={here === item.match ? "page" : undefined}
+        >
+          {item.label}
+        </a>)}
       </nav>
     </header>
     <main id="content">
@@ -45,8 +44,8 @@ const nav = [
     </main>
     <footer>
       <p class="muted">
-        A <a href="https://cybernetics.anu.edu.au">School of Cybernetics</a> experiment. Everything runs in your browser;
-        nothing you feed it leaves your machine.
+        A <a href="https://cybernetics.anu.edu.au">School of Cybernetics</a> experiment. Everything
+        runs in your browser; nothing you feed it leaves your machine.
         <a href="https://github.com/ANUcybernetics/llmcpu">Source on GitHub</a>.
       </p>
     </footer>
