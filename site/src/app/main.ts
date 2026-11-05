@@ -543,6 +543,11 @@ function wireHoverLinking(root: HTMLElement): void {
   root.addEventListener("pointerleave", clear);
 }
 
+async function loadFile(file: File): Promise<void> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  loadCustom(imageFromBytes(bytes, file.name));
+}
+
 function wireFeed(): void {
   const text = $<HTMLTextAreaElement>("feed-text");
   const kind = (): "hex" | "text" => ($<HTMLInputElement>("feed-hex").checked ? "hex" : "text");
@@ -560,13 +565,9 @@ function wireFeed(): void {
   $("feed-random").addEventListener("click", () => {
     loadCustom(imageFromRandom(Number($<HTMLSelectElement>("feed-random-size").value)));
   });
-  const fromFile = async (file: File): Promise<void> => {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    loadCustom(imageFromBytes(bytes, file.name));
-  };
   $<HTMLInputElement>("feed-file").addEventListener("change", (event) => {
     const file = (event.target as HTMLInputElement).files?.[0];
-    if (file) void fromFile(file);
+    if (file) void loadFile(file);
   });
   const zone = $("feed");
   zone.addEventListener("dragover", (event) => {
@@ -578,7 +579,7 @@ function wireFeed(): void {
     event.preventDefault();
     zone.classList.remove("dragging");
     const file = event.dataTransfer?.files[0];
-    if (file) void fromFile(file);
+    if (file) void loadFile(file);
   });
 }
 
