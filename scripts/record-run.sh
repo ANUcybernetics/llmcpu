@@ -30,7 +30,7 @@ sleep 1
 ab click "#load-model" >/dev/null
 sleep 3
 echo "loading: $(ab eval "document.querySelector('#model-note').textContent")"
-for i in $(seq 1 120); do
+for _ in $(seq 1 120); do
   sleep 5
   st=$(ab eval "document.querySelector('#status').textContent")
   [[ "$st" == *"model ready"* ]] && break

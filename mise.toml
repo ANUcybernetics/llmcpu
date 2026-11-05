@@ -1,4 +1,4 @@
 [tools]
 node = "26"
 pnpm = "latest"
-uv = "latest"
+uv = "0.13.7"
