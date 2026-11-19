@@ -17,20 +17,20 @@
   "dependencies": {
     "@fontsource-variable/instrument-sans": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
-    "@mlc-ai/web-llm": "^0.2.87",
-    "astro": "^7.4.5",
+    "@mlc-ai/web-llm": "^0.2.89",
+    "astro": "^7.4.12",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.12",
     "@e18e/eslint-plugin": "^0.8.1",
     "@types/node": "^26.6.6",
-    "oxfmt": "^0.76.0",
-    "oxlint": "^1.91.0",
-    "stylelint": "^17.15.0",
-    "stylelint-config-standard": "^40.0.0",
+    "oxfmt": "^0.79.0",
+    "oxlint": "^1.94.0",
+    "stylelint": "^18.0.0",
+    "stylelint-config-standard": "^41.0.0",
     "tsx": "^4.23.15",
-    "typescript": "^6",
+    "typescript": "^6.0.3",
     "vitest": "^5.1.0"
   },
   "engines": {
