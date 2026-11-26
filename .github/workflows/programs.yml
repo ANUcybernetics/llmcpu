@@ -7,9 +7,9 @@ name: Program artefacts are fresh
 on:
   push:
     branches: [main]
-    paths: [programs/**, mise.toml, .github/workflows/programs.yml]
+    paths: [programs/**, mise.toml, mise.lock, .github/workflows/programs.yml]
   pull_request:
-    paths: [programs/**, mise.toml, .github/workflows/programs.yml]
+    paths: [programs/**, mise.toml, mise.lock, .github/workflows/programs.yml]
   workflow_dispatch:
 
 permissions:
